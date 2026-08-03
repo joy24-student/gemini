@@ -1485,6 +1485,7 @@ This is an **unofficial, reverse-engineered** client and is **not affiliated wit
 
 <div align="center">
 
-**Built with ❤️ — Zero API Keys. Zero Limits.**
+**Built with ❤️Joy Saha  — Zero API Keys. Zero Limits.**
+**please Follw me on GitHub**
 
 </div>
