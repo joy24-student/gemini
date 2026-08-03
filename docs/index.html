@@ -577,11 +577,11 @@ cd Gemini-Chat-API
 echo "GEMINI_1PSID=your_value" > .env
 echo "GEMINI_1PSIDTS=your_value" >> .env
 
-# Build & start
-docker compose up -d
+# Build & start from project root
+docker compose -f docker/docker-compose.yml up -d
 
 # Check status
-docker compose ps
+docker compose -f docker/docker-compose.yml ps
 curl http://localhost/health/live</code></pre>
       </div>
     </div>
@@ -906,13 +906,13 @@ sudo cp /etc/letsencrypt/live/your-domain.com/privkey.pem  nginx/ssl/
       <div class="step-body">
         <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
 <pre><code class="language-bash"># Build image and start all services
-docker compose up -d --build
+docker compose -f docker/docker-compose.yml up -d --build
 
 # Watch logs
-docker compose logs -f api
+docker compose -f docker/docker-compose.yml logs -f api
 
 # Verify all services are healthy
-docker compose ps</code></pre></div>
+docker compose -f docker/docker-compose.yml ps</code></pre></div>
       </div>
     </li>
     <li>
@@ -936,7 +936,7 @@ curl -X POST https://your-domain.com/v1/chat/completions \
       <div class="step-body">
         <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
 <pre><code class="language-bash"># Start with Prometheus metrics collection
-docker compose --profile monitoring up -d
+docker compose -f docker/docker-compose.yml --profile monitoring up -d
 
 # Access Prometheus at http://localhost:9090 (tunnel if on remote VPS)
 ssh -L 9090:localhost:9090 user@your-vps-ip</code></pre></div>

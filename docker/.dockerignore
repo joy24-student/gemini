@@ -47,10 +47,6 @@ server_config.json
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
-
 # Docker
 Dockerfile*
 docker-compose*
