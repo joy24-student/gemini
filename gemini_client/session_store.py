@@ -64,8 +64,8 @@ class DurableSessionStore:
         ttl_seconds: int = 86_400,
     ) -> None:
         if db_path is None:
-            storage = Path.home() / ".gemini" / "sessions"
-            storage.mkdir(parents=True, exist_ok=True)
+            from gemini_client.utils import ensure_data_dir
+            storage = ensure_data_dir("sessions")
             db_path = str(storage / "sessions.db")
         self._db_path = db_path
         self._ttl = ttl_seconds
@@ -74,10 +74,16 @@ class DurableSessionStore:
     # ── Internal sync helpers (run in thread pool) ───────────────────────────
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self._db_path, check_same_thread=False)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.row_factory = sqlite3.Row
+        try:
+            conn = sqlite3.connect(self._db_path, check_same_thread=False)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.row_factory = sqlite3.Row
+            return conn
+        except sqlite3.OperationalError:
+            conn = sqlite3.connect(":memory:", check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            return conn
         return conn
 
     def _init_db(self) -> None:

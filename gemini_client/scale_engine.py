@@ -73,9 +73,13 @@ class HighScaleMemoryPool:
 
         if storage_dir:
             self.storage_dir = Path(storage_dir)
+            try:
+                self.storage_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
         else:
-            self.storage_dir = Path.home() / ".gemini" / "scale_memory"
-        self.storage_dir.mkdir(parents=True, exist_ok=True)
+            from gemini_client.utils import ensure_data_dir
+            self.storage_dir = ensure_data_dir("scale_memory")
 
         # LRU RAM Cache: user_id -> ConversationMemory
         self._ram_cache: OrderedDict[str, ConversationMemory] = OrderedDict()

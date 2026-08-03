@@ -81,9 +81,13 @@ class ConversationMemory:
 
         if storage_dir:
             self.storage_dir = Path(storage_dir)
+            try:
+                self.storage_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
         else:
-            self.storage_dir = Path.home() / ".gemini" / "memory"
-        self.storage_dir.mkdir(parents=True, exist_ok=True)
+            from gemini_client.utils import ensure_data_dir
+            self.storage_dir = ensure_data_dir("memory")
 
         # Auto-load if session_name is specified and file exists
         if self.session_name:
@@ -325,9 +329,13 @@ class MultiUserMemoryManager:
         self.max_messages_per_user = max_messages_per_user
         if storage_dir:
             self.storage_dir = Path(storage_dir)
+            try:
+                self.storage_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
         else:
-            self.storage_dir = Path.home() / ".gemini" / "support_memory"
-        self.storage_dir.mkdir(parents=True, exist_ok=True)
+            from gemini_client.utils import ensure_data_dir
+            self.storage_dir = ensure_data_dir("support_memory")
 
         self._user_memories: Dict[str, ConversationMemory] = {}
         self._lock = threading.Lock()

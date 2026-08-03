@@ -4,10 +4,15 @@
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/health", "dest": "/api/health" },
     { "src": "/v1/chat/completions", "dest": "/api/chat" },
-    { "src": "/v1/models", "dest": "/api/models" }
+    { "src": "/v1/models", "dest": "/api/models" },
+    { "src": "/(.*)", "dest": "/server.py" }
   ],
   "functions": {
     "api/*.py": {
+      "maxDuration": 60,
+      "memory": 512
+    },
+    "server.py": {
       "maxDuration": 60,
       "memory": 512
     }

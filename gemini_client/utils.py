@@ -118,3 +118,29 @@ def load_cookies(cookie_path: str) -> Tuple[str, str]:
         raise Exception("Invalid JSON format in the cookie file.")
     except Exception as e:
         raise Exception(f"Error loading cookies from {cookie_path}: {e}")
+
+
+def ensure_data_dir(subdir: str = "") -> Path:
+    """
+    Returns a writable directory Path for storage.
+    First tries user home directory (~/.gemini/<subdir>).
+    If user home is read-only (e.g., Vercel, AWS Lambda, Docker read-only container),
+    falls back to system temporary directory (/tmp/.gemini/<subdir>).
+    """
+    import tempfile
+    try:
+        path = Path.home() / ".gemini"
+        if subdir:
+            path = path / subdir
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+    except Exception:
+        path = Path(tempfile.gettempdir()) / ".gemini"
+        if subdir:
+            path = path / subdir
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        return path
+

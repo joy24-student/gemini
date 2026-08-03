@@ -40,8 +40,8 @@ _metrics = Metrics()
 add_health_routes(app, _metrics)
 
 # ── Persistent Storage for API Keys & Cookies ───────────────────────────────
-DATA_DIR = Path.home() / ".gemini" / "server"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+from gemini_client.utils import ensure_data_dir
+DATA_DIR = ensure_data_dir("server")
 CONFIG_FILE = DATA_DIR / "config.json"
 
 # In-memory state
