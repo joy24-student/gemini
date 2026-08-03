@@ -119,19 +119,15 @@ class Model(Enum):
     def from_name(cls, name: str):
         """
         Get a Model enum member by its model name.
-
-        Args:
-            name (str): Name of the model.
-
-        Returns:
-            Model: Corresponding Model enum member.
-
-        Raises:
-            ValueError: If the model name is not found.
+        Falls back gracefully to G_2_5_FLASH for unknown or unsupported model names (e.g. 'nano', 'banana').
         """
+        if not name:
+            return cls.G_2_5_FLASH
+        clean_name = str(name).strip().lower()
         for model in cls:
-            if model.model_name == name:
+            if model.model_name.lower() == clean_name:
                 return model
-        raise ValueError(
-            f"Unknown model name: {name}. Available models: {', '.join([model.model_name for model in cls])}"
-        )
+        # Alias matching
+        if "pro" in clean_name:
+            return cls.G_2_5_PRO
+        return cls.G_2_5_FLASH
