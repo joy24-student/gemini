@@ -4847,16 +4847,22 @@
           });
         };
 
-        await consumeSSE(response, payload => {
-          const delta = payload?.choices?.[0]?.delta?.content ?? payload?.choices?.[0]?.message?.content ?? "";
-          if (typeof delta === "string" && delta) {
-            accumulated += delta;
-            assistantTurn.content = accumulated;
-            scheduleRender();
-          }
-        });
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const json = await response.json();
+          accumulated = json?.choices?.[0]?.message?.content ?? json?.choices?.[0]?.text ?? json?.text ?? json?.content ?? json?.error?.message ?? "";
+        } else {
+          await consumeSSE(response, payload => {
+            const delta = payload?.choices?.[0]?.delta?.content ?? payload?.choices?.[0]?.message?.content ?? payload?.choices?.[0]?.text ?? payload?.text ?? payload?.content ?? payload?.error?.message ?? "";
+            if (typeof delta === "string" && delta) {
+              accumulated += delta;
+              assistantTurn.content = accumulated;
+              scheduleRender();
+            }
+          });
+        }
 
-        assistantTurn.content = accumulated || "No response content was returned by the gateway.";
+        assistantTurn.content = accumulated || "Gateway Notice: No response content was returned. Please verify your session cookies (__Secure-1PSID) in AI Studio or check server logs.";
         renderMarkdown(body, assistantTurn.content);
         chat.updatedAt = Date.now();
         saveState();
@@ -4884,12 +4890,19 @@
       let completed = false;
 
       const processLine = line => {
-        const trimmed = line.replace(/\r$/, "");
-        if (!trimmed.startsWith("data:")) return;
-        const data = trimmed.slice(5).trimStart();
-        if (!data) return;
-        if (data === "[DONE]") { completed = true; return; }
-        try { onPayload(JSON.parse(data)); } catch (_) { /* Preserve the next network frame; malformed complete events are ignored. */ }
+        const trimmed = line.replace(/\r$/, "").trim();
+        if (!trimmed) return;
+        let dataStr = trimmed;
+        if (trimmed.startsWith("data:")) {
+          dataStr = trimmed.slice(5).trimStart();
+        }
+        if (!dataStr) return;
+        if (dataStr === "[DONE]") { completed = true; return; }
+        try {
+          onPayload(JSON.parse(dataStr));
+        } catch (_) {
+          onPayload({ choices: [{ delta: { content: dataStr } }] });
+        }
       };
 
       while (!completed) {

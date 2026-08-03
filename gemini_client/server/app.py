@@ -211,22 +211,59 @@ async def chat_completions(
     # Streaming Response (SSE) — engine processes, then stream from cached text
     if req.stream:
         async def event_generator():
-            result = await engine.process_user_query(user_id=user_id, message=formatted_prompt)
-            text = result.get("text", "")
-            # Chunk the text for SSE streaming
-            chunk_size = 20
-            for i in range(0, max(len(text), 1), chunk_size):
-                chunk = text[i:i + chunk_size]
-                sse_data = {
+            try:
+                result = await engine.process_user_query(user_id=user_id, message=formatted_prompt)
+                resp = result.get("response")
+                if resp and getattr(resp, "error", False):
+                    err_msg = getattr(resp, "error_message", "Gateway failed to generate response.")
+                    sse_err = {
+                        "id": resp_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_ts,
+                        "model": req.model,
+                        "choices": [{"index": 0, "delta": {"content": f"Gateway Error: {err_msg}"}, "finish_reason": "error"}],
+                    }
+                    yield f"data: {json.dumps(sse_err)}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                text = result.get("text", "")
+                if not text:
+                    err_msg = result.get("error") or "Gateway returned an empty response. Please verify your session cookies in AI Studio."
+                    sse_err = {
+                        "id": resp_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_ts,
+                        "model": req.model,
+                        "choices": [{"index": 0, "delta": {"content": err_msg}, "finish_reason": "stop"}],
+                    }
+                    yield f"data: {json.dumps(sse_err)}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                chunk_size = 20
+                for i in range(0, len(text), chunk_size):
+                    chunk = text[i:i + chunk_size]
+                    sse_data = {
+                        "id": resp_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_ts,
+                        "model": req.model,
+                        "choices": [{"index": 0, "delta": {"content": chunk}, "finish_reason": None}],
+                    }
+                    yield f"data: {json.dumps(sse_data)}\n\n"
+                yield f"data: {json.dumps({'id': resp_id, 'object': 'chat.completion.chunk', 'created': created_ts, 'model': req.model, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]})}\n\n"
+                yield "data: [DONE]\n\n"
+            except Exception as e:
+                sse_err = {
                     "id": resp_id,
                     "object": "chat.completion.chunk",
                     "created": created_ts,
                     "model": req.model,
-                    "choices": [{"index": 0, "delta": {"content": chunk}, "finish_reason": None}],
+                    "choices": [{"index": 0, "delta": {"content": f"Gateway Error: {str(e)}"}, "finish_reason": "error"}],
                 }
-                yield f"data: {json.dumps(sse_data)}\n\n"
-            yield f"data: {json.dumps({'id': resp_id, 'object': 'chat.completion.chunk', 'created': created_ts, 'model': req.model, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]})}\n\n"
-            yield "data: [DONE]\n\n"
+                yield f"data: {json.dumps(sse_err)}\n\n"
+                yield "data: [DONE]\n\n"
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     # Non-streaming Response
