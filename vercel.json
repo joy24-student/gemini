@@ -6,10 +6,6 @@
     { "src": "/v1/chat/completions", "dest": "/api/chat" },
     { "src": "/v1/models", "dest": "/api/models" }
   ],
-  "env": {
-    "GEMINI_1PSID": "@gemini_1psid",
-    "GEMINI_1PSIDTS": "@gemini_1psidts"
-  },
   "functions": {
     "api/*.py": {
       "maxDuration": 60,
