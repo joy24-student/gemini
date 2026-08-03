@@ -53,6 +53,10 @@ COOKIES: Dict[str, str] = {"__Secure-1PSID": "", "__Secure-1PSIDTS": ""}
 ACTIVE_ENGINE: Optional[HighScaleSupportEngine] = None
 ENGINE_LOCK = asyncio.Lock()
 
+# Multi-account cookie pool
+from gemini_client.cookie_pool import CookiePool
+COOKIE_POOL = CookiePool.from_env()
+
 
 def load_server_config():
     global API_KEYS, COOKIES
@@ -260,11 +264,37 @@ async def auto_extract_cookies():
         extracted = extractor.extract_cookies(save_to_disk=False)
         COOKIES["__Secure-1PSID"] = extracted["__Secure-1PSID"]
         COOKIES["__Secure-1PSIDTS"] = extracted["__Secure-1PSIDTS"]
+        COOKIE_POOL.add(extracted["__Secure-1PSID"], extracted["__Secure-1PSIDTS"], name="Auto-Extracted Account")
         save_server_config()
         ACTIVE_ENGINE = None  # Force engine re-initialization
-        return {"status": "success", "cookies": COOKIES}
+        return {"status": "success", "message": "Cookies extracted successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Auto-extraction failed: {e}")
+
+
+@app.get("/api/cookies/accounts")
+async def get_cookie_accounts():
+    """Get safe account summaries WITHOUT leaking secret cookie values."""
+    if COOKIE_POOL.total_count == 0:
+        psid = COOKIES.get("__Secure-1PSID", "")
+        psidts = COOKIES.get("__Secure-1PSIDTS", "")
+        if psid:
+            COOKIE_POOL.add(psid, psidts, name="Primary Account")
+    return {"status": "success", "accounts": COOKIE_POOL.safe_account_summaries()}
+
+
+@app.post("/api/cookies/switch")
+async def switch_cookie_account(data: Dict[str, str]):
+    """Switch active cookie account by ID or name."""
+    global ACTIVE_ENGINE
+    account_id = data.get("account_id") or data.get("name", "")
+    if COOKIE_POOL.set_active_account(account_id):
+        psid, psidts = COOKIE_POOL.next()
+        COOKIES["__Secure-1PSID"] = psid
+        COOKIES["__Secure-1PSIDTS"] = psidts
+        ACTIVE_ENGINE = None  # Force engine re-initialization with switched account
+        return {"status": "success", "active_account": account_id}
+    raise HTTPException(status_code=404, detail=f"Account '{account_id}' not found in pool.")
 
 
 @app.post("/api/keys")

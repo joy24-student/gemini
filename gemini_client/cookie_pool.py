@@ -8,29 +8,19 @@ Manages multiple Google account cookie pairs (PSID + PSIDTS) to distribute
 load across accounts, avoiding rate-limits and single-account bans.
 
 Features:
-  1. Round-Robin Dispatch: Evenly distributes requests across all healthy accounts.
-  2. Per-Cookie Rate Tracking: Counts requests per cookie per minute; warns at threshold.
-  3. Health Check & Auto-Blacklist: Automatically marks a cookie as burned after
+  1. Named Account Labels: Assign human-readable account names (e.g. "Joy Primary", "Work Account").
+  2. Multi-Format Loading: Load from env var JSON string, numbered env vars, or cookies_pool.json file.
+  3. Round-Robin Dispatch: Evenly distributes requests across all healthy accounts.
+  4. Per-Cookie Rate Tracking: Counts requests per cookie per minute; warns at threshold.
+  5. Health Check & Auto-Blacklist: Automatically marks a cookie as burned after
      repeated auth failures (401/403) and excludes it from dispatch.
-  4. JSON File Loading: Load a pool of cookie pairs from a simple JSON config file.
-
-Usage::
-
-    pool = CookiePool.from_file("cookies_pool.json")
-    psid, psidts = pool.next()
-    pool.report_failure(psid)  # after a 403
-
-cookies_pool.json format::
-
-    [
-        {"__Secure-1PSID": "...", "__Secure-1PSIDTS": "..."},
-        {"__Secure-1PSID": "...", "__Secure-1PSIDTS": "..."}
-    ]
+  6. Safe Account Summary API: Exposes account names and health status WITHOUT leaking secret cookie strings.
 """
 from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -45,6 +35,8 @@ _MAX_FAILURES = 3
 
 @dataclass
 class _CookieSlot:
+    id: str
+    name: str
     psid: str
     psidts: str
     healthy: bool = True
@@ -62,7 +54,7 @@ class _CookieSlot:
         self.failure_count += 1
         if self.failure_count >= _MAX_FAILURES:
             self.healthy = False
-            logger.warning(f"Cookie ...{self.psid[-8:]} blacklisted after {self.failure_count} auth failures.")
+            logger.warning(f"Account '{self.name}' (...{self.psid[-8:]}) blacklisted after {self.failure_count} auth failures.")
 
     def mark_success(self) -> None:
         self.failure_count = 0
@@ -70,65 +62,131 @@ class _CookieSlot:
 
 class CookiePool:
     """
-    Thread-safe round-robin pool of Google account cookie pairs.
-
-    Parameters
-    ----------
-    cookies : list of (psid, psidts) tuples
+    Thread-safe pool of named Google account cookie pairs.
     """
 
-    def __init__(self, cookies: Optional[List[Tuple[str, str]]] = None):
+    def __init__(self, entries: Optional[List[Dict[str, str]]] = None):
         self._slots: List[_CookieSlot] = []
         self._index = 0
+        self._active_id: Optional[str] = None
         self._lock = threading.Lock()
-        for psid, psidts in (cookies or []):
-            self.add(psid, psidts)
+        for e in (entries or []):
+            self.add(
+                psid=e.get("__Secure-1PSID") or e.get("psid", ""),
+                psidts=e.get("__Secure-1PSIDTS") or e.get("psidts", ""),
+                name=e.get("name") or e.get("label", ""),
+            )
+
+    @classmethod
+    def from_env(cls) -> "CookiePool":
+        """
+        Automatically build CookiePool from environment variables.
+        Tries:
+          1. GEMINI_COOKIES_JSON environment variable (JSON string of account objects)
+          2. GEMINI_COOKIE_POOL_PATH environment variable (File path)
+          3. Numbered env vars (GEMINI_COOKIE_1_PSID, GEMINI_COOKIE_1_PSIDTS, etc.)
+          4. Single-account env vars (GEMINI_1PSID, GEMINI_1PSIDTS)
+        """
+        entries = []
+
+        # 1. GEMINI_COOKIES_JSON
+        raw_json = os.environ.get("GEMINI_COOKIES_JSON", "").strip()
+        if raw_json:
+            try:
+                parsed = json.loads(raw_json)
+                if isinstance(parsed, list):
+                    entries.extend(parsed)
+            except Exception as e:
+                logger.error(f"Failed to parse GEMINI_COOKIES_JSON: {e}")
+
+        # 2. GEMINI_COOKIE_POOL_PATH
+        pool_path = os.environ.get("GEMINI_COOKIE_POOL_PATH", "").strip()
+        if pool_path and os.path.exists(pool_path):
+            try:
+                parsed = json.loads(Path(pool_path).read_text(encoding="utf-8"))
+                if isinstance(parsed, list):
+                    entries.extend(parsed)
+            except Exception as e:
+                logger.error(f"Failed to load GEMINI_COOKIE_POOL_PATH ({pool_path}): {e}")
+
+        # 3. Numbered env vars: GEMINI_COOKIE_1_PSID, GEMINI_COOKIE_2_PSID...
+        for idx in range(1, 20):
+            psid = os.environ.get(f"GEMINI_COOKIE_{idx}_PSID", "").strip()
+            psidts = os.environ.get(f"GEMINI_COOKIE_{idx}_PSIDTS", "").strip()
+            name = os.environ.get(f"GEMINI_COOKIE_{idx}_NAME", f"Account {idx}").strip()
+            if psid:
+                entries.append({"name": name, "__Secure-1PSID": psid, "__Secure-1PSIDTS": psidts})
+
+        # 4. Single account fallback: GEMINI_1PSID, GEMINI_1PSIDTS
+        if not entries:
+            psid = os.environ.get("GEMINI_1PSID", "").strip()
+            psidts = os.environ.get("GEMINI_1PSIDTS", "").strip()
+            if psid:
+                entries.append({"name": "Primary Account", "__Secure-1PSID": psid, "__Secure-1PSIDTS": psidts})
+
+        return cls.from_list(entries)
 
     @classmethod
     def from_file(cls, path: str) -> "CookiePool":
-        """Load pool from JSON file: [{"__Secure-1PSID": ..., "__Secure-1PSIDTS": ...}, ...]"""
+        """Load pool from JSON file: [{"name": "...", "__Secure-1PSID": ..., "__Secure-1PSIDTS": ...}, ...]"""
         data = json.loads(Path(path).read_text(encoding="utf-8"))
-        pairs = []
-        for entry in data:
-            psid = entry.get("__Secure-1PSID") or entry.get("psid", "")
-            psidts = entry.get("__Secure-1PSIDTS") or entry.get("psidts", "")
-            if psid:
-                pairs.append((psid, psidts))
-        if not pairs:
-            raise ValueError(f"No valid cookie pairs found in {path}")
-        instance = cls(pairs)
-        logger.info(f"CookiePool loaded {len(pairs)} account(s) from {path}")
-        return instance
+        if not isinstance(data, list):
+            raise ValueError(f"Cookie pool file {path} must contain a JSON array.")
+        return cls.from_list(data)
 
     @classmethod
     def from_list(cls, entries: List[Dict[str, str]]) -> "CookiePool":
-        """Load from a list of dicts."""
-        pairs = [
-            (e.get("__Secure-1PSID", ""), e.get("__Secure-1PSIDTS", ""))
-            for e in entries if e.get("__Secure-1PSID")
-        ]
-        return cls(pairs)
+        """Load from a list of dict objects."""
+        pool = cls()
+        for idx, e in enumerate(entries, 1):
+            psid = e.get("__Secure-1PSID") or e.get("psid", "")
+            psidts = e.get("__Secure-1PSIDTS") or e.get("psidts", "")
+            name = e.get("name") or e.get("label") or f"Account {idx}"
+            if psid:
+                pool.add(psid, psidts, name=name)
+        return pool
 
-    def add(self, psid: str, psidts: str) -> None:
+    def add(self, psid: str, psidts: str, name: Optional[str] = None) -> str:
+        """Add a cookie pair to the pool with a human-readable name."""
         with self._lock:
-            self._slots.append(_CookieSlot(psid=psid, psidts=psidts))
+            slot_id = f"acc_{len(self._slots) + 1}"
+            account_name = name or f"Account {len(self._slots) + 1}"
+            slot = _CookieSlot(id=slot_id, name=account_name, psid=psid, psidts=psidts)
+            self._slots.append(slot)
+            if self._active_id is None:
+                self._active_id = slot_id
+            return slot_id
+
+    def set_active_account(self, slot_id_or_name: str) -> bool:
+        """Set a specific account to be active for subsequent requests."""
+        with self._lock:
+            for s in self._slots:
+                if s.id == slot_id_or_name or s.name == slot_id_or_name:
+                    self._active_id = s.id
+                    logger.info(f"Switched active cookie account to '{s.name}' ({s.id})")
+                    return True
+            return False
 
     def next(self) -> Tuple[str, str]:
-        """Return next healthy (psid, psidts) pair via round-robin."""
+        """Return next healthy (psid, psidts) pair."""
         with self._lock:
             healthy = [s for s in self._slots if s.healthy]
             if not healthy:
-                raise RuntimeError(
-                    "All cookies in the pool are blacklisted. Add fresh Google account cookies."
-                )
+                raise RuntimeError("All cookie accounts in the pool are blacklisted. Please refresh session cookies.")
+
+            # If user explicitly selected an active account and it's healthy, use it
+            if self._active_id:
+                for s in healthy:
+                    if s.id == self._active_id:
+                        s.record_request()
+                        return s.psid, s.psidts
+
+            # Round-robin dispatch
             slot = healthy[self._index % len(healthy)]
             self._index = (self._index + 1) % len(healthy)
             rpm = slot.record_request()
             if rpm >= _RATE_WARN_THRESHOLD:
-                logger.warning(
-                    f"Cookie ...{slot.psid[-8:]} at {rpm} req/min (threshold={_RATE_WARN_THRESHOLD}). "
-                    "Consider adding more accounts."
-                )
+                logger.warning(f"Account '{slot.name}' at {rpm} req/min (threshold={_RATE_WARN_THRESHOLD}).")
             return slot.psid, slot.psidts
 
     def report_failure(self, psid: str) -> None:
@@ -155,14 +213,18 @@ class CookiePool:
         with self._lock:
             return len(self._slots)
 
-    def status(self) -> List[Dict]:
+    def safe_account_summaries(self) -> List[Dict[str, str | bool | int]]:
+        """Return account summaries WITHOUT exposing sensitive cookie values."""
         with self._lock:
+            now = time.monotonic()
             return [
                 {
-                    "psid_tail": s.psid[-8:],
+                    "id": s.id,
+                    "name": s.name,
+                    "active": (s.id == self._active_id),
                     "healthy": s.healthy,
                     "failures": s.failure_count,
-                    "rpm": len([t for t in s._request_times if t > time.monotonic() - 60]),
+                    "rpm": len([t for t in s._request_times if t > now - 60]),
                 }
                 for s in self._slots
             ]
