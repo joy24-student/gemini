@@ -510,7 +510,10 @@ Please implement this integration into our codebase cleanly with error handling 
 
 @app.get("/", response_class=HTMLResponse)
 async def get_dashboard():
-    """AI Studio Web Interface."""
+    """Enterprise AI Studio Web Interface by Joy Saha."""
+    docs_file = Path(__file__).resolve().parent.parent.parent / "docs" / "index.html"
+    if docs_file.exists():
+        return HTMLResponse(content=docs_file.read_text(encoding="utf-8"))
     return DASHBOARD_HTML
 
 

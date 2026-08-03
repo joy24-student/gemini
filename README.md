@@ -4,7 +4,10 @@
 
 **A production-grade, enterprise-ready Python & JavaScript client for Google Gemini Web UI — Zero API Key Required.**
 
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue?style=for-the-badge&logo=python)](https://www.python.org/)
+Created & Maintained by **[Joy Saha](https://sahajoy.vercel.app/)**  
+🌐 Portfolio: **[sahajoy.vercel.app](https://sahajoy.vercel.app/)** | 📦 GitHub: **[joy24-student/gemini](https://github.com/joy24-student/gemini.git)**
+
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 [![HTTP/2](https://img.shields.io/badge/HTTP%2F2-Enabled-blueviolet?style=for-the-badge)](https://httpx.readthedocs.io/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-OpenAI--Compatible-teal?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
@@ -335,6 +338,44 @@ Supported browsers:
 from gemini_client import Chatbot
 
 bot = Chatbot(cookie_path="cookies.json")
+```
+
+### Method 3: Multi-Account Cookie Pool & Environment Variable Management
+
+For high-concurrency systems, you can balance requests across multiple Google accounts using `CookiePool` (`gemini_client.cookie_pool.CookiePool`). This prevents single-account rate limits and thundering-herd bans.
+
+#### Environment Variable Setup (.env)
+
+**Option A: Multi-Account JSON Array**
+```env
+GEMINI_COOKIES_JSON='[{"__Secure-1PSID": "acc1_psid", "__Secure-1PSIDTS": "acc1_psidts"}, {"__Secure-1PSID": "acc2_psid", "__Secure-1PSIDTS": "acc2_psidts"}]'
+```
+
+**Option B: Pool File Path**
+```env
+GEMINI_COOKIE_POOL_PATH=/path/to/cookies_pool.json
+```
+
+**Option C: Single-Account Fallback**
+```env
+GEMINI_1PSID=g.a000mQh...
+GEMINI_1PSIDTS=sidts-Cg...
+```
+
+#### Multi-Account Code Example
+
+```python
+from gemini_client.cookie_pool import CookiePool
+from gemini_client import AsyncChatbot, Model
+
+# Load pool from file or list
+pool = CookiePool.from_file("cookies_pool.json")
+
+# Dispatch next round-robin healthy cookie pair
+psid, psidts = pool.next()
+
+bot = await AsyncChatbot.create(secure_1psid=psid, secure_1psidts=psidts, model=Model.G_2_5_FLASH)
+```
 response = bot.ask("Hello!")
 print(response.text)
 ```

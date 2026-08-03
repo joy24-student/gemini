@@ -3,1420 +3,807 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Gemini Unofficial API — Developer Portal</title>
-<meta name="description" content="Enterprise-grade interactive documentation and live API playground for the Gemini Unofficial Client API."/>
+<title>Gemini AI Studio — by Joy Saha</title>
+<meta name="description" content="100% Pixel-Perfect Gemini Web UI Replica & Enterprise AI Studio Portal created by Joy Saha."/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
 <style>
-/* ── Design Tokens ─────────────────────────────────────────────────────── */
+/* ── Google Gemini Dark Theme Tokens ─────────────────────────────────────── */
 :root {
-  --bg:          #080b14;
-  --bg2:         #0d1120;
-  --bg3:         #111827;
-  --card:        rgba(17,24,39,.8);
-  --border:      rgba(99,102,241,.18);
-  --border2:     rgba(99,102,241,.08);
-  --accent:      #6366f1;
-  --accent2:     #818cf8;
-  --cyan:        #22d3ee;
-  --green:       #34d399;
-  --red:         #f87171;
-  --yellow:      #fbbf24;
-  --text:        #f1f5f9;
-  --text2:       #94a3b8;
-  --text3:       #475569;
-  --glow:        0 0 40px rgba(99,102,241,.15);
-  --r:           12px;
-  --r-sm:        8px;
-  --font:        'Inter', system-ui, sans-serif;
-  --mono:        'JetBrains Mono', 'Fira Code', monospace;
-  --sidebar-w:   270px;
-  --header-h:    64px;
+  --gemini-bg:         #131314;
+  --gemini-surface:    #1e1e1f;
+  --gemini-surface2:   #282a2c;
+  --gemini-hover:      #333538;
+  --gemini-border:     #2a2b2d;
+  --gemini-blue:       #a8c7fa;
+  --gemini-blue-bg:    #1b273d;
+  --gemini-spark:      linear-gradient(135deg, #4285f4 0%, #9b51e0 40%, #e91e63 70%, #fbbc04 100%);
+  --text-main:         #e3e3e3;
+  --text-sub:          #c4c7c5;
+  --text-muted:        #8e918f;
+  --font-main:         'Google Sans', 'Inter', system-ui, sans-serif;
+  --font-mono:         'JetBrains Mono', monospace;
+  --header-height:     64px;
 }
 
-/* ── Reset ────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { scroll-behavior: smooth; }
-body {
-  font-family: var(--font);
-  background: var(--bg);
-  color: var(--text);
-  line-height: 1.6;
-  overflow-x: hidden;
-}
+html, body { height: 100%; font-family: var(--font-main); background: var(--gemini-bg); color: var(--text-main); line-height: 1.6; overflow: hidden; }
 
-/* ── Scrollbar ────────────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg2); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--gemini-bg); }
+::-webkit-scrollbar-thumb { background: var(--gemini-surface2); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gemini-hover); }
 
-/* ── Header ───────────────────────────────────────────────────────────── */
+/* ── Top Header Navigation Bar ──────────────────────────────────────────── */
 header {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-  height: var(--header-h);
-  background: rgba(8,11,20,.92);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center;
-  padding: 0 24px; gap: 20px;
-}
-.logo {
-  font-size: 18px; font-weight: 800;
-  background: linear-gradient(135deg, var(--accent2) 0%, var(--cyan) 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  white-space: nowrap;
-}
-.header-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(52,211,153,.12); color: var(--green);
-  border: 1px solid rgba(52,211,153,.25);
-  border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 600;
-}
-.header-badge::before { content: '●'; animation: pulse 2s infinite; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-.header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
-.server-input-wrap {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: var(--r-sm); padding: 6px 12px;
-}
-.server-input-wrap label { font-size: 11px; color: var(--text3); white-space: nowrap; }
-.server-input-wrap input {
-  background: none; border: none; outline: none;
-  color: var(--accent2); font-family: var(--mono); font-size: 13px;
-  width: 220px;
-}
-#pingBadge {
-  font-size: 11px; font-weight: 600; padding: 2px 8px;
-  border-radius: 20px; white-space: nowrap;
-}
-.ping-ok  { background: rgba(52,211,153,.15); color: var(--green); border: 1px solid rgba(52,211,153,.3); }
-.ping-err { background: rgba(248,113,113,.12); color: var(--red);   border: 1px solid rgba(248,113,113,.3); }
-.ping-checking { background: rgba(251,191,36,.12); color: var(--yellow); border: 1px solid rgba(251,191,36,.3); }
-
-/* ── Layout ────────────────────────────────────────────────────────────── */
-.layout { display: flex; padding-top: var(--header-h); min-height: 100vh; }
-
-/* ── Sidebar ───────────────────────────────────────────────────────────── */
-aside {
-  position: fixed; top: var(--header-h); left: 0; bottom: 0;
-  width: var(--sidebar-w);
-  background: var(--bg2);
-  border-right: 1px solid var(--border2);
-  overflow-y: auto;
-  padding: 20px 0;
-}
-.nav-group { margin-bottom: 4px; }
-.nav-group-label {
-  padding: 8px 20px 4px;
-  font-size: 10px; font-weight: 700; letter-spacing: .12em;
-  color: var(--text3); text-transform: uppercase;
-}
-.nav-link {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 20px; font-size: 13.5px; color: var(--text2);
-  cursor: pointer; transition: all .15s; border-left: 2px solid transparent;
-  text-decoration: none;
-}
-.nav-link:hover { color: var(--text); background: rgba(99,102,241,.06); }
-.nav-link.active {
-  color: var(--accent2); border-left-color: var(--accent);
-  background: rgba(99,102,241,.1);
-}
-.nav-method {
-  font-size: 10px; font-weight: 700; border-radius: 3px;
-  padding: 1px 5px; font-family: var(--mono);
-}
-.m-post { background: rgba(52,211,153,.15); color: var(--green); }
-.m-get  { background: rgba(34,211,238,.15); color: var(--cyan); }
-.m-del  { background: rgba(248,113,113,.15); color: var(--red); }
-
-/* ── Main ─────────────────────────────────────────────────────────────── */
-main {
-  margin-left: var(--sidebar-w);
-  flex: 1; padding: 40px 48px;
-  max-width: calc(100vw - var(--sidebar-w));
-}
-
-/* ── Sections ─────────────────────────────────────────────────────────── */
-.section { margin-bottom: 80px; scroll-margin-top: calc(var(--header-h) + 20px); }
-.section-title {
-  font-size: 26px; font-weight: 800; margin-bottom: 6px;
-  background: linear-gradient(135deg, var(--text) 60%, var(--accent2));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.section-desc { color: var(--text2); font-size: 15px; margin-bottom: 28px; max-width: 680px; }
-
-/* ── Hero Banner ──────────────────────────────────────────────────────── */
-.hero {
-  background: linear-gradient(135deg, rgba(99,102,241,.12) 0%, rgba(34,211,238,.06) 100%);
-  border: 1px solid var(--border);
-  border-radius: var(--r); padding: 36px 40px; margin-bottom: 48px;
-  position: relative; overflow: hidden;
-}
-.hero::before {
-  content: '';
-  position: absolute; top: -60px; right: -60px;
-  width: 300px; height: 300px;
-  background: radial-gradient(circle, rgba(99,102,241,.15) 0%, transparent 70%);
-  pointer-events: none;
-}
-.hero h1 { font-size: 32px; font-weight: 800; margin-bottom: 10px; }
-.hero p  { color: var(--text2); font-size: 16px; max-width: 600px; margin-bottom: 20px; }
-.badge-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
-}
-.badge-purple { background: rgba(99,102,241,.15); color: var(--accent2); border: 1px solid rgba(99,102,241,.3); }
-.badge-cyan   { background: rgba(34,211,238,.12); color: var(--cyan);    border: 1px solid rgba(34,211,238,.25); }
-.badge-green  { background: rgba(52,211,153,.12); color: var(--green);   border: 1px solid rgba(52,211,153,.25); }
-
-/* ── Cards ────────────────────────────────────────────────────────────── */
-.card {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--r); padding: 24px;
-  backdrop-filter: blur(8px); transition: border-color .2s, box-shadow .2s;
-}
-.card:hover { border-color: rgba(99,102,241,.35); box-shadow: var(--glow); }
-
-.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 16px; margin-bottom: 32px; }
-.stat-card { text-align: center; padding: 20px; }
-.stat-card .stat-val { font-size: 28px; font-weight: 800; font-family: var(--mono); color: var(--accent2); }
-.stat-card .stat-label { font-size: 12px; color: var(--text3); margin-top: 4px; }
-
-/* ── Endpoint Card ────────────────────────────────────────────────────── */
-.endpoint-card {
-  border: 1px solid var(--border2); border-radius: var(--r);
-  overflow: hidden; margin-bottom: 24px;
-  background: var(--card); transition: border-color .2s;
-}
-.endpoint-card:hover { border-color: var(--border); }
-.endpoint-header {
-  display: flex; align-items: center; gap: 12px;
-  padding: 16px 20px; cursor: pointer; user-select: none;
-}
-.endpoint-header:hover { background: rgba(99,102,241,.04); }
-.method-badge {
-  font-family: var(--mono); font-size: 11px; font-weight: 700;
-  padding: 3px 8px; border-radius: 4px;
-}
-.method-post { background: rgba(52,211,153,.15); color: var(--green); }
-.method-get  { background: rgba(34,211,238,.15); color: var(--cyan); }
-.method-del  { background: rgba(248,113,113,.15); color: var(--red); }
-.endpoint-path {
-  font-family: var(--mono); font-size: 14px; color: var(--text);
-  flex: 1;
-}
-.endpoint-desc { font-size: 13px; color: var(--text2); }
-.endpoint-chevron { color: var(--text3); transition: transform .2s; margin-left: auto; }
-.endpoint-card.open .endpoint-chevron { transform: rotate(180deg); }
-.endpoint-body { display: none; padding: 0 20px 20px; border-top: 1px solid var(--border2); padding-top: 20px; }
-.endpoint-card.open .endpoint-body { display: block; }
-
-/* ── Code Blocks ──────────────────────────────────────────────────────── */
-.code-wrap { position: relative; margin: 12px 0; border-radius: var(--r-sm); overflow: hidden; }
-.code-wrap pre { margin: 0; }
-.code-wrap .hljs { border-radius: var(--r-sm); font-size: 13px; font-family: var(--mono); }
-.copy-btn {
-  position: absolute; top: 8px; right: 8px;
-  background: rgba(15,20,35,.8); border: 1px solid var(--border);
-  color: var(--text2); font-size: 11px; padding: 3px 10px; border-radius: 4px;
-  cursor: pointer; transition: all .15s; font-family: var(--font);
-}
-.copy-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
-.copy-btn.copied { background: var(--green); color: #000; border-color: var(--green); }
-
-/* ── Tabs ─────────────────────────────────────────────────────────────── */
-.tabs { display: flex; gap: 2px; margin-bottom: -1px; }
-.tab-btn {
-  padding: 8px 16px; font-size: 13px; font-weight: 500;
-  background: var(--bg2); border: 1px solid var(--border2);
-  border-bottom: none; color: var(--text2); cursor: pointer;
-  border-radius: var(--r-sm) var(--r-sm) 0 0; transition: all .15s;
-}
-.tab-btn.active { background: var(--bg3); color: var(--accent2); border-color: var(--border); }
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
-.tabs-wrap { border: 1px solid var(--border); border-radius: 0 var(--r-sm) var(--r-sm) var(--r-sm); padding: 0; overflow: hidden; background: var(--bg3); }
-
-/* ── Params Table ─────────────────────────────────────────────────────── */
-.params-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
-.params-table th { text-align: left; padding: 8px 12px; color: var(--text3); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--border2); }
-.params-table td { padding: 10px 12px; border-bottom: 1px solid var(--border2); vertical-align: top; }
-.params-table tr:last-child td { border-bottom: none; }
-.param-name { font-family: var(--mono); color: var(--cyan); font-size: 13px; }
-.param-type { font-family: var(--mono); color: var(--yellow); font-size: 12px; background: rgba(251,191,36,.08); padding: 1px 6px; border-radius: 3px; }
-.required-badge { background: rgba(248,113,113,.12); color: var(--red); font-size: 10px; padding: 1px 6px; border-radius: 3px; }
-.optional-badge { background: rgba(148,163,184,.1); color: var(--text3); font-size: 10px; padding: 1px 6px; border-radius: 3px; }
-
-/* ── Playground ───────────────────────────────────────────────────────── */
-.playground {
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: var(--r); overflow: hidden;
-}
-.playground-header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  height: var(--header-height);
+  background: var(--gemini-surface);
+  border-bottom: 1px solid var(--gemini-border);
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 20px; border-bottom: 1px solid var(--border);
-  background: rgba(99,102,241,.05);
+  padding: 0 20px;
 }
-.playground-header h3 { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-.playground-body { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-@media (max-width: 900px) { .playground-body { grid-template-columns: 1fr; } }
-.pg-label { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
-.pg-textarea {
-  width: 100%; min-height: 180px; max-height: 360px;
-  background: var(--bg3); border: 1px solid var(--border);
-  color: var(--text); font-family: var(--mono); font-size: 13px;
-  padding: 12px; border-radius: var(--r-sm);
-  resize: vertical; outline: none; transition: border-color .15s;
+.header-brand { display: flex; align-items: center; gap: 12px; }
+.gemini-spark-logo {
+  font-size: 20px; font-weight: 700;
+  background: var(--gemini-spark);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  display: flex; align-items: center; gap: 6px; text-decoration: none;
 }
-.pg-textarea:focus { border-color: var(--accent); }
-.pg-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: center; }
-.pg-input {
-  flex: 1; background: var(--bg3); border: 1px solid var(--border);
-  color: var(--text); font-family: var(--mono); font-size: 13px;
-  padding: 8px 12px; border-radius: var(--r-sm); outline: none; transition: border-color .15s;
+.author-pill {
+  font-size: 12px; font-weight: 500; color: var(--gemini-blue);
+  background: var(--gemini-blue-bg); border: 1px solid rgba(168, 199, 250, 0.2);
+  padding: 4px 12px; border-radius: 20px; text-decoration: none; transition: all 0.2s;
 }
-.pg-input:focus { border-color: var(--accent); }
-.pg-select {
-  background: var(--bg3); border: 1px solid var(--border);
-  color: var(--text); font-size: 13px; padding: 8px 12px;
-  border-radius: var(--r-sm); outline: none; cursor: pointer;
-}
-.btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 10px 20px; border-radius: var(--r-sm); border: none;
-  font-family: var(--font); font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: all .15s;
-}
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 100%);
-  color: #fff; box-shadow: 0 4px 15px rgba(99,102,241,.3);
-}
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,.45); }
-.btn-primary:active { transform: none; }
-.btn-primary:disabled { opacity: .5; cursor: not-allowed; transform: none; }
-.btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text2); }
-.btn-ghost:hover { border-color: var(--accent); color: var(--accent2); }
+.author-pill:hover { background: rgba(168, 199, 250, 0.2); border-color: var(--gemini-blue); }
 
-.response-panel { position: relative; }
-.response-meta {
-  display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+.nav-tabs-pill { display: flex; gap: 4px; background: var(--gemini-bg); padding: 4px; border-radius: 24px; border: 1px solid var(--gemini-border); }
+.nav-tab-btn {
+  padding: 8px 20px; font-size: 13.5px; font-weight: 500; color: var(--text-sub);
+  border: none; background: transparent; border-radius: 20px; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; transition: all 0.2s;
 }
-.meta-chip {
-  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 12px;
-  font-family: var(--mono);
-}
-.meta-status-ok  { background: rgba(52,211,153,.15); color: var(--green); }
-.meta-status-err { background: rgba(248,113,113,.12); color: var(--red); }
-.meta-time { background: rgba(34,211,238,.1); color: var(--cyan); }
-.meta-tokens { background: rgba(251,191,36,.1); color: var(--yellow); }
-.response-output {
-  background: var(--bg); border: 1px solid var(--border);
-  border-radius: var(--r-sm); padding: 14px;
-  font-family: var(--mono); font-size: 12.5px; color: var(--text);
-  min-height: 180px; max-height: 400px; overflow-y: auto;
-  white-space: pre-wrap; word-break: break-all;
-}
-.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
+.nav-tab-btn:hover { color: var(--text-main); background: var(--gemini-surface2); }
+.nav-tab-btn.active { background: var(--gemini-surface2); color: var(--gemini-blue); font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
 
-/* ── Alerts ───────────────────────────────────────────────────────────── */
-.alert { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--r-sm); margin: 16px 0; font-size: 14px; }
-.alert-info    { background: rgba(99,102,241,.1); border: 1px solid rgba(99,102,241,.25); }
-.alert-warn    { background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.25); }
-.alert-success { background: rgba(52,211,153,.08); border: 1px solid rgba(52,211,153,.25); }
-.alert-icon { font-size: 16px; flex-shrink: 0; }
-
-/* ── Steps ────────────────────────────────────────────────────────────── */
-.steps { list-style: none; counter-reset: step; }
-.steps li {
-  counter-increment: step; position: relative;
-  padding: 0 0 32px 52px;
+.header-status { display: flex; align-items: center; gap: 12px; }
+.status-indicator {
+  font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 20px;
+  background: rgba(52, 211, 153, 0.12); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3);
+  display: flex; align-items: center; gap: 6px;
 }
-.steps li:last-child { padding-bottom: 0; }
-.steps li::before {
-  content: counter(step);
-  position: absolute; left: 0; top: 2px;
-  width: 32px; height: 32px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--cyan));
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 13px; color: #fff;
-  flex-shrink: 0;
-}
-.steps li::after {
-  content: '';
-  position: absolute; left: 15px; top: 36px; bottom: 0;
-  width: 2px; background: var(--border2);
-}
-.steps li:last-child::after { display: none; }
-.step-title { font-weight: 600; font-size: 15px; margin-bottom: 8px; }
-.step-body { color: var(--text2); font-size: 14px; }
+.status-indicator::before { content: '●'; font-size: 10px; }
 
-/* ── Divider ──────────────────────────────────────────────────────────── */
-hr { border: none; border-top: 1px solid var(--border2); margin: 32px 0; }
+/* ── Container Layout ────────────────────────────────────────────────────── */
+.main-stage { margin-top: var(--header-height); height: calc(100vh - var(--header-height)); position: relative; }
+.tab-view { display: none; height: 100%; width: 100%; }
+.tab-view.active { display: flex; }
 
-/* ── Table ────────────────────────────────────────────────────────────── */
-.data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-.data-table th { background: var(--bg3); padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; }
-.data-table td { padding: 12px 16px; border-bottom: 1px solid var(--border2); vertical-align: top; }
-.data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: rgba(99,102,241,.03); }
+/* ═════════════════════════════════════════════════════════════════════════ */
+/* VIEW 1: 100% PIXEL-PERFECT GEMINI CHAT                                   */
+/* ═════════════════════════════════════════════════════════════════════════ */
+#view-chat { background: var(--gemini-bg); overflow: hidden; }
 
-/* ── Toast ────────────────────────────────────────────────────────────── */
-#toast {
-  position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-  background: var(--bg3); border: 1px solid var(--border);
-  color: var(--text); padding: 12px 20px; border-radius: var(--r-sm);
-  font-size: 14px; transform: translateY(80px); opacity: 0;
-  transition: all .3s cubic-bezier(.34,1.56,.64,1);
-  box-shadow: 0 8px 32px rgba(0,0,0,.4);
+/* Sidebar */
+.gemini-sidebar {
+  width: 280px; background: var(--gemini-surface); border-right: 1px solid var(--gemini-border);
+  display: flex; flex-direction: column; padding: 16px; flex-shrink: 0;
 }
-#toast.show { transform: none; opacity: 1; }
-
-/* ── Responsive ───────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  aside { display: none; }
-  main { margin-left: 0; padding: 24px; }
+.btn-new-chat-pill {
+  width: 100%; padding: 12px 18px; background: var(--gemini-surface2);
+  border: 1px solid var(--gemini-border); border-radius: 28px; color: var(--text-main);
+  font-weight: 500; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 12px;
+  transition: all 0.2s; margin-bottom: 20px;
 }
+.btn-new-chat-pill:hover { background: var(--gemini-hover); border-color: var(--gemini-blue); }
+.btn-new-chat-pill .plus-icon { font-size: 18px; color: var(--gemini-blue); }
+
+.sidebar-section-title { font-size: 12px; font-weight: 700; color: var(--text-muted); padding: 0 12px 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+.chat-history-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.history-row {
+  padding: 10px 14px; border-radius: 20px; font-size: 13.5px; color: var(--text-sub);
+  cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: all 0.15s;
+}
+.history-row:hover { background: var(--gemini-hover); color: var(--text-main); }
+.history-row.active { background: var(--gemini-blue-bg); color: var(--gemini-blue); font-weight: 600; }
+.history-row .row-del { opacity: 0; color: #f87171; font-size: 13px; padding: 2px 6px; }
+.history-row:hover .row-del { opacity: 1; }
+
+.sidebar-author-box { padding-top: 16px; border-top: 1px solid var(--gemini-border); font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; }
+
+/* Main Chat Experience */
+.gemini-chat-container { flex: 1; display: flex; flex-direction: column; background: var(--gemini-bg); position: relative; }
+.gemini-model-header {
+  padding: 14px 28px; border-bottom: 1px solid var(--gemini-border);
+  display: flex; align-items: center; justify-content: space-between; background: var(--gemini-bg);
+}
+.model-picker-pill {
+  background: var(--gemini-surface); border: 1px solid var(--gemini-border); color: var(--text-main);
+  padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 14px; outline: none; cursor: pointer;
+  transition: all 0.2s;
+}
+.model-picker-pill:hover { border-color: var(--gemini-blue); }
+
+.chat-viewport {
+  flex: 1; overflow-y: auto; padding: 32px 18%; display: flex; flex-direction: column; gap: 32px;
+}
+@media (max-width: 1200px) { .chat-viewport { padding: 24px 6%; } }
+
+.turn-row { display: flex; gap: 20px; font-size: 15px; line-height: 1.7; }
+.turn-spark-icon {
+  width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0; margin-top: 2px;
+}
+.icon-user { background: var(--gemini-surface2); color: var(--gemini-blue); }
+.icon-gemini { background: var(--gemini-spark); color: #fff; font-size: 16px; }
+
+.turn-body { flex: 1; min-width: 0; }
+.turn-header { font-size: 13px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+.turn-text { color: var(--text-main); }
+.turn-text p { margin-bottom: 14px; }
+.turn-text h1, .turn-text h2, .turn-text h3 { margin: 16px 0 8px; color: var(--gemini-blue); }
+.turn-text ul, .turn-text ol { margin: 12px 0 12px 24px; }
+.turn-text pre { margin: 16px 0; border-radius: 12px; background: #0d0d0e !important; border: 1px solid var(--gemini-border); overflow: hidden; }
+.turn-text code { font-family: var(--font-mono); font-size: 13.5px; }
+
+.turn-media-preview { max-width: 280px; max-height: 200px; border-radius: 12px; border: 1px solid var(--gemini-border); margin-top: 10px; object-fit: cover; }
+.turn-action-bar { display: flex; gap: 12px; margin-top: 12px; }
+.action-btn { background: var(--gemini-surface); border: 1px solid var(--gemini-border); color: var(--text-sub); font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: 16px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+.action-btn:hover { background: var(--gemini-hover); color: var(--text-main); border-color: var(--gemini-blue); }
+
+/* Gemini Floating Input Dock */
+.gemini-input-dock { padding: 16px 18% 28px; background: var(--gemini-bg); }
+@media (max-width: 1200px) { .gemini-input-dock { padding: 16px 6% 20px; } }
+
+.prompt-pill-container {
+  background: var(--gemini-surface); border: 1px solid var(--gemini-border); border-radius: 28px;
+  padding: 14px 20px; display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5); transition: border-color 0.2s;
+}
+.prompt-pill-container:focus-within { border-color: var(--gemini-blue); }
+
+.attach-preview-strip { display: none; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--gemini-border); }
+.attach-thumb { width: 42px; height: 42px; border-radius: 8px; object-fit: cover; border: 1px solid var(--gemini-blue); }
+.attach-name { font-size: 13px; color: var(--text-sub); flex: 1; }
+.attach-close { background: none; border: none; color: #f87171; font-size: 16px; cursor: pointer; }
+
+.prompt-field {
+  width: 100%; background: transparent; border: none; outline: none;
+  color: var(--text-main); font-size: 16px; font-family: var(--font-main);
+  resize: none; max-height: 200px; min-height: 28px; line-height: 1.5;
+}
+
+.dock-controls { display: flex; align-items: center; justify-content: space-between; }
+.dock-tools { display: flex; gap: 8px; }
+.tool-circle-btn {
+  background: var(--gemini-surface2); border: 1px solid var(--gemini-border); color: var(--text-sub);
+  width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s; font-size: 16px;
+}
+.tool-circle-btn:hover { background: var(--gemini-hover); color: var(--gemini-blue); border-color: var(--gemini-blue); }
+
+.send-circle-btn {
+  background: var(--text-main); color: var(--gemini-bg); border: none;
+  width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+}
+.send-circle-btn:hover { background: var(--gemini-blue); transform: scale(1.05); }
+
+/* ═════════════════════════════════════════════════════════════════════════ */
+/* VIEW 2: AI STUDIO DEVELOPER PLAYGROUND                                    */
+/* ═════════════════════════════════════════════════════════════════════════ */
+#view-studio { padding: 32px 48px; display: flex; flex-direction: column; gap: 24px; overflow-y: auto; }
+.studio-layout { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
+@media (max-width: 1000px) { .studio-layout { grid-template-columns: 1fr; } }
+
+.card-box { background: var(--gemini-surface); border: 1px solid var(--gemini-border); border-radius: 16px; padding: 24px; }
+.card-header-title { font-size: 16px; font-weight: 700; color: var(--gemini-blue); margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+
+.field-group { margin-bottom: 16px; }
+.field-label { font-size: 12px; font-weight: 600; color: var(--text-sub); margin-bottom: 6px; display: block; }
+.field-input, .field-select, .field-textarea {
+  width: 100%; background: var(--gemini-bg); border: 1px solid var(--gemini-border); color: var(--text-main);
+  padding: 10px 14px; border-radius: 8px; font-size: 13.5px; outline: none; font-family: var(--font-main);
+}
+.field-input:focus, .field-select:focus, .field-textarea:focus { border-color: var(--gemini-blue); }
+
+.btn-gemini-blue { background: var(--gemini-blue); color: var(--gemini-bg); font-weight: 700; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
+.btn-gemini-blue:hover { opacity: 0.9; }
+
+/* ═════════════════════════════════════════════════════════════════════════ */
+/* VIEW 3: DOCUMENTATION PORTAL                                             */
+/* ═════════════════════════════════════════════════════════════════════════ */
+#view-docs { padding: 32px 48px; display: flex; flex-direction: column; gap: 32px; max-width: 1200px; margin: 0 auto; overflow-y: auto; }
+.doc-card { background: var(--gemini-surface); border: 1px solid var(--gemini-border); border-radius: 16px; padding: 28px; }
+.doc-h1 { font-size: 22px; font-weight: 700; color: var(--gemini-blue); margin-bottom: 8px; }
+.doc-p { color: var(--text-sub); font-size: 14.5px; margin-bottom: 16px; }
+
+.table-api { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 12px; }
+.table-api th { text-align: left; padding: 10px 14px; background: var(--gemini-bg); color: var(--text-muted); font-size: 11px; text-transform: uppercase; }
+.table-api td { padding: 12px 14px; border-bottom: 1px solid var(--gemini-border); }
 </style>
 </head>
 <body>
 
-<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<!-- ── TOP HEADER BAR ─────────────────────────────────────────────────────── -->
 <header>
-  <div class="logo">⚡ Gemini Unofficial API</div>
-  <div class="header-badge">Live</div>
-  <div class="header-right">
-    <div class="server-input-wrap">
-      <label>BASE URL</label>
-      <input id="baseUrl" type="text" value="http://localhost:8000" oninput="pingServer()"/>
-    </div>
-    <span id="pingBadge" class="ping-checking">Checking…</span>
+  <div class="header-brand">
+    <a href="#" class="gemini-spark-logo">✦ Gemini AI Studio</a>
+    <a href="https://sahajoy.vercel.app/" target="_blank" class="author-pill">by <b>Joy Saha</b> ↗</a>
+  </div>
+
+  <!-- 3 Major Header Navigation Tabs -->
+  <div class="nav-tabs-pill">
+    <button class="nav-tab-btn active" onclick="switchNavTab('chat')">💬 Gemini Chat</button>
+    <button class="nav-tab-btn" onclick="switchNavTab('studio')">⚡ AI Studio</button>
+    <button class="nav-tab-btn" onclick="switchNavTab('docs')">📚 Documentation</button>
+  </div>
+
+  <div class="header-status">
+    <div class="status-indicator">Engine Active</div>
   </div>
 </header>
 
-<!-- ── Layout ─────────────────────────────────────────────────────────────── -->
-<div class="layout">
+<!-- ── MAIN VIEWS STAGE ───────────────────────────────────────────────────── -->
+<div class="main-stage">
 
-<!-- ── Sidebar ──────────────────────────────────────────────────────────── -->
-<aside>
-  <div class="nav-group">
-    <div class="nav-group-label">Getting Started</div>
-    <a class="nav-link active" href="#overview" onclick="setActive(this)">📖 Overview</a>
-    <a class="nav-link" href="#auth" onclick="setActive(this)">🔑 Authentication</a>
-    <a class="nav-link" href="#quickstart" onclick="setActive(this)">⚡ Quick Start</a>
-  </div>
-  <div class="nav-group">
-    <div class="nav-group-label">API Endpoints</div>
-    <a class="nav-link" href="#endpoint-chat" onclick="setActive(this)"><span class="nav-method m-post">POST</span>/v1/chat/completions</a>
-    <a class="nav-link" href="#endpoint-models" onclick="setActive(this)"><span class="nav-method m-get">GET</span>/v1/models</a>
-    <a class="nav-link" href="#endpoint-cookies" onclick="setActive(this)"><span class="nav-method m-post">POST</span>/api/cookies</a>
-    <a class="nav-link" href="#endpoint-keys" onclick="setActive(this)"><span class="nav-method m-post">POST</span>/api/keys</a>
-    <a class="nav-link" href="#endpoint-health" onclick="setActive(this)"><span class="nav-method m-get">GET</span>/health/live</a>
-  </div>
-  <div class="nav-group">
-    <div class="nav-group-label">Playground</div>
-    <a class="nav-link" href="#playground" onclick="setActive(this)">🧪 Live Test Console</a>
-    <a class="nav-link" href="#streaming-demo" onclick="setActive(this)">📡 Streaming Demo</a>
-  </div>
-  <div class="nav-group">
-    <div class="nav-group-label">Deployment</div>
-    <a class="nav-link" href="#docker" onclick="setActive(this)">🐳 Docker VPS</a>
-    <a class="nav-link" href="#vercel" onclick="setActive(this)">▲ Vercel</a>
-    <a class="nav-link" href="#env-vars" onclick="setActive(this)">🔧 Environment Vars</a>
-  </div>
-  <div class="nav-group">
-    <div class="nav-group-label">SDKs & Examples</div>
-    <a class="nav-link" href="#sdk-python" onclick="setActive(this)">🐍 Python SDK</a>
-    <a class="nav-link" href="#sdk-js" onclick="setActive(this)">🟨 JavaScript</a>
-    <a class="nav-link" href="#sdk-curl" onclick="setActive(this)">📟 cURL</a>
-  </div>
-</aside>
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 1: 100% GEMINI CHAT EXPERIENCE                                      -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="view-chat" class="tab-view active">
+    
+    <!-- Sidebar -->
+    <div class="gemini-sidebar">
+      <button class="btn-new-chat-pill" onclick="startNewChatSession()">
+        <span class="plus-icon">+</span> New chat
+      </button>
 
-<!-- ── Main Content ──────────────────────────────────────────────────────── -->
-<main>
+      <div class="sidebar-section-title">Recent Chats</div>
+      <div class="chat-history-scroll" id="sidebarChatHistory">
+        <!-- History items dynamically populated -->
+      </div>
 
-<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
-<div class="hero">
-  <h1>Gemini Unofficial API</h1>
-  <p>Production-grade unofficial REST API for Google Gemini. OpenAI-compatible. Zero API keys required. Deploy in minutes.</p>
-  <div class="badge-row">
-    <span class="badge badge-purple">🐍 Python 3.10+</span>
-    <span class="badge badge-cyan">⚡ HTTP/2</span>
-    <span class="badge badge-green">🔄 OpenAI Compatible</span>
-    <span class="badge badge-purple">🐳 Docker Ready</span>
-    <span class="badge badge-cyan">▲ Vercel Serverless</span>
-    <span class="badge badge-green">📡 SSE Streaming</span>
-  </div>
-</div>
+      <div class="sidebar-author-box">
+        <span>Developer Portal</span>
+        <a href="https://sahajoy.vercel.app/" target="_blank" style="color:var(--gemini-blue);text-decoration:none;">Joy Saha ↗</a>
+      </div>
+    </div>
 
-<!-- ── Stats ─────────────────────────────────────────────────────────────── -->
-<div class="cards-grid">
-  <div class="card stat-card"><div class="stat-val">&lt;200ms</div><div class="stat-label">First Token Latency</div></div>
-  <div class="card stat-card"><div class="stat-val">500+</div><div class="stat-label">Concurrent Users</div></div>
-  <div class="card stat-card"><div class="stat-val">6</div><div class="stat-label">Gemini Models</div></div>
-  <div class="card stat-card"><div class="stat-val">0</div><div class="stat-label">API Keys Needed</div></div>
-</div>
+    <!-- Main Chat Stage -->
+    <div class="gemini-chat-container">
+      <!-- Top Model Header -->
+      <div class="gemini-model-header">
+        <select class="model-picker-pill" id="chatModelPicker">
+          <option value="gemini-2.5-flash">Gemini 2.5 Flash ▾</option>
+          <option value="gemini-2.5-pro">Gemini 2.5 Pro ▾</option>
+          <option value="gemini-2.0-flash">Gemini 2.0 Flash ▾</option>
+          <option value="gemini-2.0-flash-thinking">Gemini 2.0 Flash Thinking ▾</option>
+          <option value="gemini-3.0-pro">Gemini 3.0 Pro ▾</option>
+          <option value="gemini-3.0-flash">Gemini 3.0 Flash ▾</option>
+        </select>
+        <span style="font-size:12.5px;color:var(--text-muted);">StreamGenerate HTTP/2 • Zero API Keys</span>
+      </div>
 
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: Overview -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="overview">
-  <div class="section-title">Overview</div>
-  <div class="section-desc">Reverse-engineered Gemini Web UI RPC protocol wrapped in an OpenAI-compatible REST API. Drop-in replacement for any OpenAI-powered application.</div>
-
-  <div class="alert alert-info">
-    <span class="alert-icon">ℹ️</span>
-    <span>This library operates via browser session cookies, not paid API keys. Authentication requires a Google account logged into <strong>gemini.google.com</strong>.</span>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <div class="pg-label">Architecture</div>
-    <table class="data-table" style="margin-top:12px;">
-      <thead><tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr></thead>
-      <tbody>
-        <tr><td>HTTP Client</td><td><code>curl_cffi</code> + <code>httpx[http2]</code></td><td>Chrome TLS fingerprint, HTTP/2 multiplexing</td></tr>
-        <tr><td>Auth</td><td>Cookie-based session</td><td><code>__Secure-1PSID</code> + <code>__Secure-1PSIDTS</code></td></tr>
-        <tr><td>API Server</td><td>FastAPI + uvicorn</td><td>OpenAI-compatible REST endpoints</td></tr>
-        <tr><td>Scale Engine</td><td>asyncio + worker pool</td><td>500+ concurrent users, LRU memory</td></tr>
-        <tr><td>Streaming</td><td>SSE (Server-Sent Events)</td><td>Real-time token streaming</td></tr>
-        <tr><td>Voice</td><td>edge-tts + websockets</td><td>Live voice synthesis pipeline</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: Authentication -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="auth">
-  <div class="section-title">Authentication</div>
-  <div class="section-desc">Extract two session cookies from your logged-in browser session at gemini.google.com.</div>
-
-  <ol class="steps">
-    <li>
-      <div class="step-title">Open gemini.google.com</div>
-      <div class="step-body">Log into your Google account, then open the page.</div>
-    </li>
-    <li>
-      <div class="step-title">Open DevTools → Application → Cookies</div>
-      <div class="step-body">Press <code>F12</code> → <strong>Application</strong> tab → <strong>Cookies</strong> → <code>https://gemini.google.com</code></div>
-    </li>
-    <li>
-      <div class="step-title">Copy the two required cookies</div>
-      <div class="step-body">Find <code>__Secure-1PSID</code> and <code>__Secure-1PSIDTS</code> — copy both values.</div>
-    </li>
-    <li>
-      <div class="step-title">Create cookies.json</div>
-      <div class="step-body">
-        <div class="code-wrap">
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre><code class="language-json">[
-  {"name": "__Secure-1PSID",   "value": "YOUR_1PSID_VALUE"},
-  {"name": "__Secure-1PSIDTS", "value": "YOUR_1PSIDTS_VALUE"}
-]</code></pre>
+      <!-- Messages Viewport -->
+      <div class="chat-viewport" id="chatViewport">
+        <div class="turn-row">
+          <div class="turn-spark-icon icon-gemini">✦</div>
+          <div class="turn-body">
+            <div class="turn-header">Gemini</div>
+            <div class="turn-text">
+              <p>Hello! I am <b>Gemini</b> (powered by Joy Saha's unofficial client engine).</p>
+              <p>How can I help you today? You can ask questions, upload images, or generate media concepts!</p>
+            </div>
+          </div>
         </div>
       </div>
-    </li>
-    <li>
-      <div class="step-title">Use Auto-Extraction (easier)</div>
-      <div class="step-body">
-        <div class="code-wrap">
-          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-          <pre><code class="language-python">from gemini_client import Chatbot
-# Automatically reads cookies from Chrome/Edge/Firefox
-bot = Chatbot(auto_cookie=True)</code></pre>
+
+      <!-- Floating Input Dock -->
+      <div class="gemini-input-dock">
+        <div class="prompt-pill-container">
+          <!-- Attachment Preview Strip -->
+          <div class="attach-preview-strip" id="attachPreviewStrip">
+            <img id="attachImgThumb" class="attach-thumb" src="" alt="preview"/>
+            <span class="attach-name" id="attachName">image.png</span>
+            <button class="attach-close" onclick="clearAttachment()">✕</button>
+          </div>
+
+          <textarea class="prompt-field" id="chatPromptInput" placeholder="Ask Gemini..." rows="1" onkeydown="handleInputKeydown(event)"></textarea>
+
+          <div class="dock-controls">
+            <div class="dock-tools">
+              <!-- Image Upload -->
+              <input type="file" id="imageFileInput" accept="image/*" style="display:none;" onchange="onFilePicked(event)"/>
+              <button class="tool-circle-btn" title="Upload Image" onclick="document.getElementById('imageFileInput').click()">📷</button>
+              
+              <!-- Voice Input -->
+              <button class="tool-circle-btn" id="btnMicInput" title="Voice Mic Input" onclick="triggerMicInput()">🎙️</button>
+              
+              <!-- Video Prompt Concept -->
+              <button class="tool-circle-btn" title="Video Concept Prompt" onclick="addVideoConceptTag()">🎥</button>
+            </div>
+
+            <button class="send-circle-btn" id="btnSubmitChat" onclick="submitUserChat()">➔</button>
+          </div>
         </div>
       </div>
-    </li>
-  </ol>
-</div>
+    </div>
 
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: Quick Start -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="quickstart">
-  <div class="section-title">Quick Start</div>
-  <div class="section-desc">Install and run the API server in under 2 minutes.</div>
-
-  <div class="tabs" id="qs-tabs">
-    <button class="tab-btn active" onclick="switchTab('qs','pip',this)">pip install</button>
-    <button class="tab-btn" onclick="switchTab('qs','docker',this)">Docker</button>
-    <button class="tab-btn" onclick="switchTab('qs','vercel',this)">Vercel</button>
   </div>
-  <div class="tabs-wrap">
-    <div class="tab-panel active" id="qs-pip">
-      <div class="code-wrap">
-        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-        <pre><code class="language-bash">git clone https://github.com/OEvortex/Gemini-Chat-API.git
-cd Gemini-Chat-API
-pip install -r requirements.txt
 
-# Add your cookies
-cp .env.example .env
-# Edit .env with your GEMINI_1PSID and GEMINI_1PSIDTS
-
-# Start the server
-python server.py</code></pre>
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 2: AI STUDIO PLAYGROUND                                             -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="view-studio" class="tab-view">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h2 style="font-size:24px;font-weight:700;">⚡ AI Studio Playground & Configuration</h2>
+        <p style="color:var(--text-sub);font-size:14px;">Manage Google session cookies, API keys, parameters, and code exports.</p>
       </div>
+      <button class="btn-gemini-blue" onclick="autoExtractBrowserCookies()">⚡ Auto-Extract Cookies</button>
     </div>
-    <div class="tab-panel" id="qs-docker">
-      <div class="code-wrap">
-        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-        <pre><code class="language-bash">git clone https://github.com/OEvortex/Gemini-Chat-API.git
-cd Gemini-Chat-API
 
-# Set credentials
-echo "GEMINI_1PSID=your_value" > .env
-echo "GEMINI_1PSIDTS=your_value" >> .env
+    <div class="studio-layout">
+      <!-- Left Config Controls -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div class="card-box">
+          <div class="card-header-title">🔑 Session Cookies Setup</div>
+          <div class="field-group">
+            <label class="field-label">__Secure-1PSID</label>
+            <input type="text" class="field-input" id="psidInput" placeholder="Paste __Secure-1PSID"/>
+          </div>
+          <div class="field-group">
+            <label class="field-label">__Secure-1PSIDTS</label>
+            <input type="text" class="field-input" id="psidtsInput" placeholder="Paste __Secure-1PSIDTS"/>
+          </div>
+          <button class="btn-gemini-blue" style="width:100%;" onclick="saveSessionCookies()">Save Session Cookies</button>
+        </div>
 
-# Build & start from project root
-docker compose -f docker/docker-compose.yml up -d
+        <div class="card-box">
+          <div class="card-header-title">🔑 API Keys Management</div>
+          <div class="field-group" style="display:flex;gap:8px;">
+            <input type="text" class="field-input" id="newKeyName" placeholder="Key Label (e.g. Production App)"/>
+            <button class="btn-gemini-blue" onclick="createKey()">Create</button>
+          </div>
+          <div id="studioKeysList"></div>
+        </div>
 
-# Check status
-docker compose -f docker/docker-compose.yml ps
-curl http://localhost/health/live</code></pre>
+        <div class="card-box">
+          <div class="card-header-title">⚙️ Hyperparameters</div>
+          <div class="field-group">
+            <label class="field-label">Model Selection</label>
+            <select class="field-select" id="studioModelSelect">
+              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+              <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label class="field-label">System Instruction</label>
+            <textarea class="field-textarea" id="studioSystemInstruction" rows="3" placeholder="You are an expert AI assistant..."></textarea>
+          </div>
+        </div>
       </div>
-    </div>
-    <div class="tab-panel" id="qs-vercel">
-      <div class="code-wrap">
-        <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-        <pre><code class="language-bash">npm i -g vercel
-git clone https://github.com/OEvortex/Gemini-Chat-API.git
-cd Gemini-Chat-API
 
-# Add environment variables
-vercel env add GEMINI_1PSID
-vercel env add GEMINI_1PSIDTS
+      <!-- Right Playground Stage -->
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div class="card-box">
+          <div class="card-header-title">🧪 Prompt Tester & JSON Inspector</div>
+          <div class="field-group">
+            <textarea class="field-textarea" id="testPromptInput" rows="4" placeholder="Enter prompt to execute live test..."></textarea>
+          </div>
+          <button class="btn-gemini-blue" onclick="runLiveTest()">Execute Test Prompt</button>
 
-# Deploy
-vercel --prod</code></pre>
+          <div style="margin-top:16px;">
+            <label class="field-label">JSON Response Output</label>
+            <pre style="background:var(--gemini-bg);padding:14px;border-radius:10px;font-family:var(--font-mono);font-size:13px;max-height:240px;overflow-y:auto;" id="testJsonOutput">Response payload will appear here...</pre>
+          </div>
+        </div>
+
+        <div class="card-box">
+          <div class="card-header-title">🤖 Code Exporters</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <button class="btn-gemini-blue" onclick="renderCodeExport('python')">Python</button>
+            <button class="btn-gemini-blue" onclick="renderCodeExport('js')">JavaScript</button>
+            <button class="btn-gemini-blue" onclick="renderCodeExport('curl')">cURL</button>
+          </div>
+          <pre style="background:var(--gemini-bg);padding:14px;border-radius:10px;font-family:var(--font-mono);font-size:13px;" id="codeSnippetBox"></pre>
+        </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: Endpoints -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="endpoint-chat">
-  <div class="section-title">API Reference</div>
-  <div class="section-desc">All endpoints are OpenAI-compatible. Swap <code>api.openai.com</code> for your server URL.</div>
-
-  <!-- POST /v1/chat/completions -->
-  <div class="endpoint-card" id="ep-chat">
-    <div class="endpoint-header" onclick="toggleEndpoint('ep-chat')">
-      <span class="method-badge method-post">POST</span>
-      <span class="endpoint-path">/v1/chat/completions</span>
-      <span class="endpoint-desc">Send a chat message. Supports streaming SSE.</span>
-      <span class="endpoint-chevron">▾</span>
-    </div>
-    <div class="endpoint-body">
-      <div class="pg-label" style="margin-bottom:12px;">Request Body</div>
-      <table class="params-table">
-        <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 3: DOCUMENTATION PORTAL                                             -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <div id="view-docs" class="tab-view">
+    <div class="doc-card">
+      <div class="doc-h1">📖 API Reference & System Overview</div>
+      <div class="doc-p">Created by <b><a href="https://sahajoy.vercel.app/" target="_blank" style="color:var(--gemini-blue);">Joy Saha</a></b>. Self-hosted OpenAI-compatible REST API gateway for Google Gemini Web UI.</div>
+      
+      <table class="table-api">
+        <thead><tr><th>Endpoint</th><th>Method</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td class="param-name">model</td><td><span class="param-type">string</span></td><td><span class="optional-badge">optional</span></td><td>Model ID. Default: <code>gemini-2.5-flash</code></td></tr>
-          <tr><td class="param-name">messages</td><td><span class="param-type">array</span></td><td><span class="required-badge">required</span></td><td>Array of <code>{role, content}</code> message objects</td></tr>
-          <tr><td class="param-name">stream</td><td><span class="param-type">boolean</span></td><td><span class="optional-badge">optional</span></td><td>Enable SSE streaming. Default: <code>false</code></td></tr>
-          <tr><td class="param-name">temperature</td><td><span class="param-type">float</span></td><td><span class="optional-badge">optional</span></td><td>Sampling temperature 0–1. Default: <code>0.7</code></td></tr>
+          <tr><td><code>/v1/chat/completions</code></td><td>POST</td><td>OpenAI-compatible chat completions endpoint (Supports SSE streaming)</td></tr>
+          <tr><td><code>/v1/models</code></td><td>GET</td><td>List available Gemini models</td></tr>
+          <tr><td><code>/api/cookies</code></td><td>POST</td><td>Dynamically update session cookie credentials</td></tr>
+          <tr><td><code>/api/keys</code></td><td>POST</td><td>Generate and manage API keys</td></tr>
+          <tr><td><code>/health/live</code></td><td>GET</td><td>Liveness probe endpoint</td></tr>
         </tbody>
       </table>
-      <div class="tabs" style="margin-top:16px;" id="chat-tabs">
-        <button class="tab-btn active" onclick="switchTab('chat','py',this)">Python</button>
-        <button class="tab-btn" onclick="switchTab('chat','js',this)">JavaScript</button>
-        <button class="tab-btn" onclick="switchTab('chat','curl',this)">cURL</button>
-      </div>
-      <div class="tabs-wrap">
-        <div class="tab-panel active" id="chat-py">
-          <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-python">import openai
-
-client = openai.OpenAI(
-    base_url="http://localhost:8000/v1",
-    api_key="your-api-key",  # or "none" if no auth configured
-)
-
-response = client.chat.completions.create(
-    model="gemini-2.5-flash",
-    messages=[{"role": "user", "content": "Hello! What can you do?"}],
-)
-print(response.choices[0].message.content)</code></pre></div>
-        </div>
-        <div class="tab-panel" id="chat-js">
-          <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-javascript">const res = await fetch("http://localhost:8000/v1/chat/completions", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    "Authorization": "Bearer your-api-key",
-  },
-  body: JSON.stringify({
-    model: "gemini-2.5-flash",
-    messages: [{ role: "user", content: "Hello!" }],
-    stream: false,
-  }),
-});
-const data = await res.json();
-console.log(data.choices[0].message.content);</code></pre></div>
-        </div>
-        <div class="tab-panel" id="chat-curl">
-          <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">curl -X POST http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-api-key" \
-  -d '{
-    "model": "gemini-2.5-flash",
-    "messages": [{"role": "user", "content": "Hello!"}]
-  }'</code></pre></div>
-        </div>
-      </div>
     </div>
-  </div>
 
-  <!-- GET /v1/models -->
-  <div class="endpoint-card" id="ep-models">
-    <div class="endpoint-header" onclick="toggleEndpoint('ep-models')">
-      <span class="method-badge method-get">GET</span>
-      <span class="endpoint-path">/v1/models</span>
-      <span class="endpoint-desc">List all available Gemini models.</span>
-      <span class="endpoint-chevron">▾</span>
+    <div class="doc-card">
+      <div class="doc-h1">🐳 Docker VPS Deployment</div>
+      <div class="doc-p">Run using Docker Compose with Nginx reverse proxy and TLS:</div>
+      <pre style="background:var(--gemini-bg);padding:14px;border-radius:10px;font-family:var(--font-mono);font-size:13px;color:var(--gemini-blue);">git clone https://github.com/joy24-student/gemini.git
+cd gemini
+docker compose -f docker/docker-compose.yml up -d --build</pre>
     </div>
-    <div class="endpoint-body">
-      <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">curl http://localhost:8000/v1/models \
-  -H "Authorization: Bearer your-api-key"</code></pre></div>
-      <div style="margin-top:12px;"><div class="pg-label">Response</div>
-      <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-json">{
-  "object": "list",
-  "data": [
-    {"id": "gemini-2.5-flash", "object": "model", "owned_by": "google-unofficial"},
-    {"id": "gemini-2.5-pro",   "object": "model", "owned_by": "google-unofficial"},
-    {"id": "gemini-2.0-flash", "object": "model", "owned_by": "google-unofficial"}
-  ]
-}</code></pre></div></div>
-    </div>
-  </div>
 
-  <!-- POST /api/cookies -->
-  <div class="endpoint-card" id="ep-cookies">
-    <div class="endpoint-header" onclick="toggleEndpoint('ep-cookies')">
-      <span class="method-badge method-post">POST</span>
-      <span class="endpoint-path" id="endpoint-cookies">/api/cookies</span>
-      <span class="endpoint-desc">Update session credentials at runtime.</span>
-      <span class="endpoint-chevron">▾</span>
-    </div>
-    <div class="endpoint-body">
-      <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">curl -X POST http://localhost:8000/api/cookies \
-  -H "Content-Type: application/json" \
-  -d '{"__Secure-1PSID": "...", "__Secure-1PSIDTS": "..."}'</code></pre></div>
-    </div>
-  </div>
-
-  <!-- POST /api/keys -->
-  <div class="endpoint-card" id="ep-keys">
-    <div class="endpoint-header" onclick="toggleEndpoint('ep-keys')">
-      <span class="method-badge method-post">POST</span>
-      <span class="endpoint-path" id="endpoint-keys">/api/keys</span>
-      <span class="endpoint-desc">Create a new API key for server access control.</span>
-      <span class="endpoint-chevron">▾</span>
-    </div>
-    <div class="endpoint-body">
-      <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">curl -X POST http://localhost:8000/api/keys \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Production App"}'
-# → {"status":"success","api_key":"sk-gemini-..."}</code></pre></div>
-    </div>
-  </div>
-
-  <!-- GET /health/live -->
-  <div class="endpoint-card" id="ep-health">
-    <div class="endpoint-header" onclick="toggleEndpoint('ep-health')">
-      <span class="method-badge method-get">GET</span>
-      <span class="endpoint-path" id="endpoint-health">/health/live</span>
-      <span class="endpoint-desc">Liveness probe for Docker and load balancers.</span>
-      <span class="endpoint-chevron">▾</span>
-    </div>
-    <div class="endpoint-body">
-      <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">curl http://localhost:8000/health/live
-# → {"status":"live"}
-
-curl http://localhost:8000/health/ready
-# → {"status":"ready","cookies":{"healthy":1,"total":1}}</code></pre></div>
-    </div>
-  </div>
-</div>
-
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: Live Playground -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="playground">
-  <div class="section-title">Live Test Console</div>
-  <div class="section-desc">Send real requests to your running API server and inspect responses in real time.</div>
-
-  <div class="playground">
-    <div class="playground-header">
-      <h3>🧪 Interactive API Playground</h3>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <select class="pg-select" id="pg-model">
-          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-          <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-          <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-        </select>
-        <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;">
-          <input type="checkbox" id="pg-stream"/> Stream SSE
-        </label>
-      </div>
-    </div>
-    <div class="playground-body">
-      <div>
-        <div class="pg-label">Messages (JSON Array)</div>
-        <textarea class="pg-textarea" id="pg-messages">[
-  {"role": "system", "content": "You are a helpful AI assistant."},
-  {"role": "user",   "content": "Explain quantum computing in 2 sentences."}
-]</textarea>
-        <div class="pg-row">
-          <input class="pg-input" id="pg-apikey" type="text" placeholder="API Key (leave blank if none)"/>
-        </div>
-        <div style="display:flex;gap:10px;">
-          <button class="btn btn-primary" id="pg-send-btn" onclick="sendPlayground()">
-            ▶ Send Request
-          </button>
-          <button class="btn btn-ghost" onclick="clearPlayground()">Clear</button>
-        </div>
-      </div>
-      <div class="response-panel">
-        <div class="pg-label">Response</div>
-        <div class="response-meta" id="pg-meta" style="display:none;">
-          <span class="meta-chip meta-status-ok" id="pg-status">200 OK</span>
-          <span class="meta-chip meta-time" id="pg-time">0ms</span>
-          <span class="meta-chip meta-tokens" id="pg-tokens">0 tokens</span>
-        </div>
-        <div class="response-output" id="pg-output">Response will appear here after you click Send Request…</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: Streaming Demo -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="streaming-demo">
-  <div class="section-title">Streaming Demo</div>
-  <div class="section-desc">Watch tokens arrive in real time using Server-Sent Events (SSE).</div>
-
-  <div class="playground">
-    <div class="playground-header">
-      <h3>📡 SSE Streaming Console</h3>
-      <span id="stream-status" class="meta-chip optional-badge">Idle</span>
-    </div>
-    <div class="playground-body">
-      <div>
-        <div class="pg-label">Prompt</div>
-        <textarea class="pg-textarea" id="stream-prompt" style="min-height:120px;">Write a short poem about the ocean.</textarea>
-        <button class="btn btn-primary" id="stream-btn" onclick="startStream()" style="margin-top:12px;">
-          📡 Stream Response
-        </button>
-      </div>
-      <div>
-        <div class="pg-label">Live Token Output</div>
-        <div class="response-output" id="stream-output" style="min-height:200px;position:relative;">
-          <span style="color:var(--text3);">Tokens appear here in real time…</span>
-        </div>
-        <div style="margin-top:8px;font-size:12px;color:var(--text3);" id="stream-stats"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: Docker VPS Deployment -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="docker">
-  <div class="section-title">🐳 Docker VPS Deployment</div>
-  <div class="section-desc">Full production stack: API server + nginx reverse proxy + TLS + Prometheus.</div>
-
-  <div class="alert alert-success">
-    <span class="alert-icon">✅</span>
-    <span><strong>Recommended for production.</strong> Supports streaming, WebSockets, voice pipeline, and 500+ concurrent users. Minimum: 1GB RAM, Ubuntu 22.04.</span>
-  </div>
-
-  <ol class="steps">
-    <li>
-      <div class="step-title">Provision VPS & Install Docker</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">sudo apt update && sudo apt upgrade -y
-
-# Install Docker Engine
-curl -fsSL https://get.docker.com | bash
-sudo usermod -aG docker $USER
-newgrp docker
-
-# Install Docker Compose plugin
-sudo apt install -y docker-compose-plugin
-docker compose version</code></pre></div>
-      </div>
-    </li>
-    <li>
-      <div class="step-title">Clone Repository</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">git clone https://github.com/OEvortex/Gemini-Chat-API.git
-cd Gemini-Chat-API</code></pre></div>
-      </div>
-    </li>
-    <li>
-      <div class="step-title">Configure Environment Variables</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">cp .env.example .env
-nano .env
-# Set GEMINI_1PSID and GEMINI_1PSIDTS from gemini.google.com cookies</code></pre></div>
-      </div>
-    </li>
-    <li>
-      <div class="step-title">Add SSL Certificates (Let's Encrypt)</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">sudo apt install -y certbot
-sudo certbot certonly --standalone -d your-domain.com
-
-# Copy certs to nginx ssl dir
-sudo mkdir -p nginx/ssl
-sudo cp /etc/letsencrypt/live/your-domain.com/fullchain.pem nginx/ssl/
-sudo cp /etc/letsencrypt/live/your-domain.com/privkey.pem  nginx/ssl/
-
-# Update nginx/default.conf: set server_name your-domain.com</code></pre></div>
-      </div>
-    </li>
-    <li>
-      <div class="step-title">Build & Launch</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash"># Build image and start all services
-docker compose -f docker/docker-compose.yml up -d --build
-
-# Watch logs
-docker compose -f docker/docker-compose.yml logs -f api
-
-# Verify all services are healthy
-docker compose -f docker/docker-compose.yml ps</code></pre></div>
-      </div>
-    </li>
-    <li>
-      <div class="step-title">Verify Deployment</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">curl https://your-domain.com/health/live
-# → {"status":"live"}
-
-curl https://your-domain.com/v1/models
-# → {"object":"list","data":[...]}
-
-# Test chat
-curl -X POST https://your-domain.com/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"Hello!"}]}'</code></pre></div>
-      </div>
-    </li>
-    <li>
-      <div class="step-title">Enable Monitoring (optional)</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash"># Start with Prometheus metrics collection
-docker compose -f docker/docker-compose.yml --profile monitoring up -d
-
-# Access Prometheus at http://localhost:9090 (tunnel if on remote VPS)
-ssh -L 9090:localhost:9090 user@your-vps-ip</code></pre></div>
-      </div>
-    </li>
-  </ol>
-
-  <hr/>
-  <div class="pg-label" style="margin-bottom:12px;">Docker Compose Services</div>
-  <table class="data-table">
-    <thead><tr><th>Service</th><th>Image</th><th>Port</th><th>Purpose</th></tr></thead>
-    <tbody>
-      <tr><td><code>api</code></td><td>Custom (Dockerfile)</td><td>8000 (internal)</td><td>Gemini API server (FastAPI + uvicorn)</td></tr>
-      <tr><td><code>nginx</code></td><td>nginx:1.27-alpine</td><td>80, 443</td><td>Reverse proxy, TLS, SSE, static docs</td></tr>
-      <tr><td><code>prometheus</code></td><td>prom/prometheus</td><td>9090 (localhost)</td><td>Metrics collection (opt-in profile)</td></tr>
-      <tr><td><code>watchtower</code></td><td>containrrr/watchtower</td><td>—</td><td>Auto-update containers (opt-in profile)</td></tr>
-    </tbody>
-  </table>
-</div>
-
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: Vercel Deployment -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="vercel">
-  <div class="section-title">▲ Vercel Deployment</div>
-  <div class="section-desc">Deploy the REST API as serverless functions with zero infrastructure management. Best for simple chat completions without streaming or WebSocket features.</div>
-
-  <div class="alert alert-warn">
-    <span class="alert-icon">⚠️</span>
-    <span>Vercel Hobby plan has a <strong>60s function timeout</strong> and <strong>no WebSocket support</strong>. For streaming, live voice, and 500+ user concurrency, use the <a href="#docker" style="color:var(--accent2)">Docker VPS setup</a> instead.</span>
-  </div>
-
-  <ol class="steps">
-    <li>
-      <div class="step-title">Install Vercel CLI & Login</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">npm install -g vercel
-vercel login</code></pre></div>
-      </div>
-    </li>
-    <li>
-      <div class="step-title">Clone the Repository</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">git clone https://github.com/OEvortex/Gemini-Chat-API.git
-cd Gemini-Chat-API</code></pre></div>
-      </div>
-    </li>
-    <li>
-      <div class="step-title">Set Secret Environment Variables</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash"># Add your Google session cookies as Vercel secrets
+    <div class="doc-card">
+      <div class="doc-h1">▲ Vercel Serverless Deployment</div>
+      <div class="doc-p">Deploy directly to Vercel Serverless Functions:</div>
+      <pre style="background:var(--gemini-bg);padding:14px;border-radius:10px;font-family:var(--font-mono);font-size:13px;color:var(--gemini-blue);">npm install -g vercel
 vercel env add GEMINI_1PSID
-# Paste your __Secure-1PSID value when prompted
-
 vercel env add GEMINI_1PSIDTS
-# Paste your __Secure-1PSIDTS value when prompted</code></pre></div>
-      </div>
-    </li>
-    <li>
-      <div class="step-title">Deploy to Production</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">vercel --prod
-# → Deployed to: https://your-project.vercel.app</code></pre></div>
-      </div>
-    </li>
-    <li>
-      <div class="step-title">Test Your Deployment</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash">curl https://your-project.vercel.app/health
-# → {"status":"ready","cookies":"configured"}
-
-curl -X POST https://your-project.vercel.app/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"Hello from Vercel!"}]}'</code></pre></div>
-      </div>
-    </li>
-    <li>
-      <div class="step-title">Connect to OpenAI SDK</div>
-      <div class="step-body">
-        <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-python">import openai
-
-client = openai.OpenAI(
-    base_url="https://your-project.vercel.app/v1",
-    api_key="none",  # No auth key required by default
-)
-
-response = client.chat.completions.create(
-    model="gemini-2.5-flash",
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-print(response.choices[0].message.content)</code></pre></div>
-      </div>
-    </li>
-  </ol>
-
-  <hr/>
-  <div class="pg-label" style="margin-bottom:12px;">Vercel Limitations</div>
-  <table class="data-table">
-    <thead><tr><th>Limitation</th><th>Hobby Plan</th><th>Pro Plan</th><th>Workaround</th></tr></thead>
-    <tbody>
-      <tr><td>Function timeout</td><td>60s</td><td>300s</td><td>Use Docker VPS for long responses</td></tr>
-      <tr><td>WebSocket support</td><td>❌</td><td>❌</td><td>Use Docker VPS for voice/live features</td></tr>
-      <tr><td>Persistent filesystem</td><td>❌</td><td>❌</td><td>Use env vars for credentials</td></tr>
-      <tr><td>Cold starts</td><td>~2–3s</td><td>~1s</td><td>Keep-warm pings or Pro upgrade</td></tr>
-      <tr><td>SSE streaming</td><td>✅ (within 60s)</td><td>✅ (within 300s)</td><td>Enable <code>stream: true</code></td></tr>
-    </tbody>
-  </table>
-</div>
-
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: Env Vars -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="env-vars">
-  <div class="section-title">Environment Variables</div>
-  <table class="data-table">
-    <thead><tr><th>Variable</th><th>Required</th><th>Default</th><th>Description</th></tr></thead>
-    <tbody>
-      <tr><td><code class="param-name">GEMINI_1PSID</code></td><td><span class="required-badge">required</span></td><td>—</td><td>Google <code>__Secure-1PSID</code> session cookie</td></tr>
-      <tr><td><code class="param-name">GEMINI_1PSIDTS</code></td><td><span class="required-badge">required</span></td><td>—</td><td>Google <code>__Secure-1PSIDTS</code> session cookie</td></tr>
-      <tr><td><code class="param-name">HOST</code></td><td><span class="optional-badge">optional</span></td><td><code>0.0.0.0</code></td><td>Server bind address</td></tr>
-      <tr><td><code class="param-name">PORT</code></td><td><span class="optional-badge">optional</span></td><td><code>8000</code></td><td>Server port</td></tr>
-      <tr><td><code class="param-name">API_WORKERS</code></td><td><span class="optional-badge">optional</span></td><td><code>1</code></td><td>Uvicorn worker processes</td></tr>
-      <tr><td><code class="param-name">LOG_LEVEL</code></td><td><span class="optional-badge">optional</span></td><td><code>info</code></td><td>Logging level: debug | info | warning | error</td></tr>
-      <tr><td><code class="param-name">GEMINI_COOKIE_PATH</code></td><td><span class="optional-badge">optional</span></td><td>—</td><td>Path to cookies.json file (alternative to env vars)</td></tr>
-    </tbody>
-  </table>
-</div>
-
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: Python SDK -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="sdk-python">
-  <div class="section-title">Python SDK</div>
-  <div class="section-desc">Use the library directly without the REST server for embedded applications.</div>
-  <div class="tabs" id="py-tabs">
-    <button class="tab-btn active" onclick="switchTab('py','sync',this)">Sync</button>
-    <button class="tab-btn" onclick="switchTab('py','async',this)">Async</button>
-    <button class="tab-btn" onclick="switchTab('py','stream',this)">Streaming</button>
-    <button class="tab-btn" onclick="switchTab('py','memory',this)">Memory</button>
-  </div>
-  <div class="tabs-wrap">
-    <div class="tab-panel active" id="py-sync">
-      <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-python">from gemini_client import Chatbot, Model
-
-bot = Chatbot(cookie_path="cookies.json", model=Model.G_2_5_FLASH)
-response = bot.ask("What is the capital of France?")
-print(response.text)          # → "The capital of France is Paris."
-print(response.conversation_id)</code></pre></div>
-    </div>
-    <div class="tab-panel" id="py-async">
-      <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-python">import asyncio
-from gemini_client import AsyncChatbot, Model
-
-async def main():
-    bot = await AsyncChatbot.create(
-        secure_1psid="YOUR_1PSID",
-        secure_1psidts="YOUR_1PSIDTS",
-        model=Model.G_2_5_FLASH,
-    )
-    response = await bot.ask("Hello, Gemini!")
-    print(response.text)
-    await bot.session.aclose()
-
-asyncio.run(main())</code></pre></div>
-    </div>
-    <div class="tab-panel" id="py-stream">
-      <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-python">import asyncio
-from gemini_client import AsyncChatbot
-
-async def main():
-    bot = await AsyncChatbot.create(secure_1psid="...", secure_1psidts="...")
-    async for chunk in bot.ask_stream("Write a short story."):
-        print(chunk, end="", flush=True)
-    print()
-
-asyncio.run(main())</code></pre></div>
-    </div>
-    <div class="tab-panel" id="py-memory">
-      <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-python">from gemini_client import Chatbot
-from gemini_client.memory import ConversationMemory
-
-memory = ConversationMemory(
-    session_name="my_session",      # auto-saves to ~/.gemini/memory/
-    system_instruction="You are a concise assistant.",
-)
-
-bot = Chatbot(cookie_path="cookies.json", memory=memory)
-r1 = bot.ask("My name is Alice.")
-r2 = bot.ask("What is my name?")   # → "Your name is Alice."
-print(r2.text)</code></pre></div>
+vercel --prod</pre>
     </div>
   </div>
+
 </div>
-
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: JavaScript SDK -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="sdk-js">
-  <div class="section-title">JavaScript / Node.js</div>
-  <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-javascript">// With openai npm package (drop-in)
-import OpenAI from "openai";
-
-const client = new OpenAI({
-  baseURL: "http://localhost:8000/v1",
-  apiKey:  "your-api-key",
-});
-
-// Standard request
-const response = await client.chat.completions.create({
-  model: "gemini-2.5-flash",
-  messages: [{ role: "user", content: "Hello!" }],
-});
-console.log(response.choices[0].message.content);
-
-// Streaming
-const stream = await client.chat.completions.create({
-  model: "gemini-2.5-flash",
-  messages: [{ role: "user", content: "Write a poem." }],
-  stream: true,
-});
-for await (const chunk of stream) {
-  process.stdout.write(chunk.choices[0]?.delta?.content ?? "");
-}</code></pre></div>
-</div>
-
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<!-- SECTION: cURL Examples -->
-<!-- ─────────────────────────────────────────────────────────────────────── -->
-<div class="section" id="sdk-curl">
-  <div class="section-title">cURL Examples</div>
-  <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">Copy</button>
-<pre><code class="language-bash"># Chat completion
-curl -X POST http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer sk-your-key" \
-  -d '{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"Hello!"}]}'
-
-# Streaming chat
-curl -X POST http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer sk-your-key" \
-  --no-buffer \
-  -d '{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"Tell a joke"}],"stream":true}'
-
-# List models
-curl http://localhost:8000/v1/models \
-  -H "Authorization: Bearer sk-your-key"
-
-# Health check
-curl http://localhost:8000/health/live
-
-# Update cookies (server management)
-curl -X POST http://localhost:8000/api/cookies \
-  -H "Content-Type: application/json" \
-  -d '{"__Secure-1PSID":"...","__Secure-1PSIDTS":"..."}'</code></pre></div>
-</div>
-
-</main>
-</div>
-
-<!-- ── Toast ──────────────────────────────────────────────────────────────── -->
-<div id="toast"></div>
 
 <script>
-hljs.highlightAll();
+/* ── State & Sessions Management ─────────────────────────────────────────── */
+let currentSessionId = "default";
+let sessionsMap = JSON.parse(localStorage.getItem("joy_gemini_sessions") || "{}");
+let activeAttachment = null;
 
-/* ── Server ping ─────────────────────────────────────────────────────────── */
-let pingTimer;
-function pingServer() {
-  clearTimeout(pingTimer);
-  pingTimer = setTimeout(doPing, 600);
-}
-async function doPing() {
-  const base = document.getElementById('baseUrl').value.trim().replace(/\/$/, '');
-  const badge = document.getElementById('pingBadge');
-  badge.className = 'ping-checking'; badge.textContent = 'Checking…';
-  try {
-    const t0 = Date.now();
-    const res = await fetch(`${base}/health/live`, { signal: AbortSignal.timeout(4000) });
-    const ms = Date.now() - t0;
-    if (res.ok) {
-      badge.className = 'ping-ok'; badge.textContent = `✓ Online ${ms}ms`;
-    } else {
-      badge.className = 'ping-err'; badge.textContent = `✗ HTTP ${res.status}`;
-    }
-  } catch {
-    badge.className = 'ping-err'; badge.textContent = '✗ Unreachable';
-  }
-}
-doPing(); setInterval(doPing, 30000);
-
-/* ── Nav active ──────────────────────────────────────────────────────────── */
-function setActive(el) {
-  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-  el.classList.add('active');
+function saveSessionsToDisk() {
+  localStorage.setItem("joy_gemini_sessions", JSON.stringify(sessionsMap));
 }
 
-/* ── Endpoint toggle ─────────────────────────────────────────────────────── */
-function toggleEndpoint(id) {
-  document.getElementById(id).classList.toggle('open');
-}
+/* ── Top Header Tab Navigation ───────────────────────────────────────────── */
+function switchNavTab(tabName) {
+  document.querySelectorAll('.nav-tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-view').forEach(view => view.classList.remove('active'));
 
-/* ── Tabs ────────────────────────────────────────────────────────────────── */
-function switchTab(group, tab, btn) {
-  document.querySelectorAll(`#${group}-tabs .tab-btn`).forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  const parent = btn.closest('.nav-group') || document;
-  document.querySelectorAll(`[id^="${group}-"]`).forEach(p => {
-    p.classList.toggle('active', p.id === `${group}-${tab}`);
-  });
-}
-
-/* ── Copy button ─────────────────────────────────────────────────────────── */
-function copyCode(btn) {
-  const code = btn.nextElementSibling.querySelector('code');
-  navigator.clipboard.writeText(code.innerText).then(() => {
-    btn.textContent = 'Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
-  });
-}
-
-/* ── Toast ───────────────────────────────────────────────────────────────── */
-function showToast(msg, duration = 3000) {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), duration);
-}
-
-/* ── Playground ──────────────────────────────────────────────────────────── */
-async function sendPlayground() {
-  const base   = document.getElementById('baseUrl').value.trim().replace(/\/$/, '');
-  const msgs   = document.getElementById('pg-messages').value.trim();
-  const model  = document.getElementById('pg-model').value;
-  const apiKey = document.getElementById('pg-apikey').value.trim();
-  const stream = document.getElementById('pg-stream').checked;
-  const out    = document.getElementById('pg-output');
-  const btn    = document.getElementById('pg-send-btn');
-  const meta   = document.getElementById('pg-meta');
-
-  let parsed;
-  try { parsed = JSON.parse(msgs); } catch {
-    out.textContent = '❌ Invalid JSON in messages field.'; return;
-  }
-
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Sending…';
-  out.textContent = '';
-  meta.style.display = 'none';
-
-  const headers = { 'Content-Type': 'application/json' };
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
-
-  const t0 = Date.now();
-  try {
-    const res = await fetch(`${base}/v1/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ model, messages: parsed, stream }),
-    });
-    const elapsed = Date.now() - t0;
-
-    meta.style.display = 'flex';
-    document.getElementById('pg-time').textContent = `${elapsed}ms`;
-
-    const statusEl = document.getElementById('pg-status');
-    statusEl.textContent = `${res.status} ${res.statusText}`;
-    statusEl.className = `meta-chip ${res.ok ? 'meta-status-ok' : 'meta-status-err'}`;
-
-    const data = await res.json();
-    out.textContent = JSON.stringify(data, null, 2);
-
-    const tokens = data.usage?.total_tokens ?? 0;
-    document.getElementById('pg-tokens').textContent = `${tokens} tokens`;
-  } catch (e) {
-    out.textContent = `❌ Network error: ${e.message}\n\nMake sure the server is running at:\n${base}`;
-    meta.style.display = 'none';
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '▶ Send Request';
+  if (tabName === 'chat') {
+    document.querySelectorAll('.nav-tab-btn')[0].classList.add('active');
+    document.getElementById('view-chat').classList.add('active');
+  } else if (tabName === 'studio') {
+    document.querySelectorAll('.nav-tab-btn')[1].classList.add('active');
+    document.getElementById('view-studio').classList.add('active');
+    syncStudioConfig();
+  } else {
+    document.querySelectorAll('.nav-tab-btn')[2].classList.add('active');
+    document.getElementById('view-docs').classList.add('active');
   }
 }
 
-function clearPlayground() {
-  document.getElementById('pg-output').textContent = 'Response will appear here after you click Send Request…';
-  document.getElementById('pg-meta').style.display = 'none';
+/* ── Chat Logic ──────────────────────────────────────────────────────────── */
+function initChatEngine() {
+  if (!sessionsMap[currentSessionId]) {
+    sessionsMap[currentSessionId] = { title: "New Conversation", history: [] };
+  }
+  renderSidebarHistory();
+  renderViewportMessages();
 }
 
-/* ── Streaming Demo ──────────────────────────────────────────────────────── */
-let streamController;
-async function startStream() {
-  if (streamController) { streamController.abort(); streamController = null; return; }
-  const base   = document.getElementById('baseUrl').value.trim().replace(/\/$/, '');
-  const prompt = document.getElementById('stream-prompt').value.trim();
-  const out    = document.getElementById('stream-output');
-  const btn    = document.getElementById('stream-btn');
-  const status = document.getElementById('stream-status');
-  const stats  = document.getElementById('stream-stats');
+function renderSidebarHistory() {
+  const container = document.getElementById("sidebarChatHistory");
+  container.innerHTML = "";
+  for (const [id, session] of Object.entries(sessionsMap)) {
+    const row = document.createElement("div");
+    row.className = `history-row ${id === currentSessionId ? 'active' : ''}`;
+    row.onclick = () => selectChatSession(id);
+    row.innerHTML = `
+      <span>💬 ${session.title || 'Chat'}</span>
+      <span class="row-del" onclick="deleteChatSession(event, '${id}')">✕</span>
+    `;
+    container.appendChild(row);
+  }
+}
 
-  streamController = new AbortController();
-  out.textContent = '';
-  btn.textContent = '⏹ Stop Stream';
-  status.textContent = 'Streaming…';
-  status.className = 'meta-chip meta-status-ok';
-  stats.textContent = '';
+function selectChatSession(id) {
+  currentSessionId = id;
+  renderSidebarHistory();
+  renderViewportMessages();
+}
 
-  const t0 = Date.now();
-  let tokens = 0;
+function startNewChatSession() {
+  currentSessionId = "session_" + Date.now();
+  sessionsMap[currentSessionId] = { title: "New Conversation", history: [] };
+  saveSessionsToDisk();
+  renderSidebarHistory();
+  renderViewportMessages();
+}
+
+function deleteChatSession(e, id) {
+  e.stopPropagation();
+  delete sessionsMap[id];
+  if (Object.keys(sessionsMap).length === 0) {
+    currentSessionId = "default";
+    sessionsMap[currentSessionId] = { title: "New Conversation", history: [] };
+  } else {
+    currentSessionId = Object.keys(sessionsMap)[0];
+  }
+  saveSessionsToDisk();
+  renderSidebarHistory();
+  renderViewportMessages();
+}
+
+function renderViewportMessages() {
+  const viewport = document.getElementById("chatViewport");
+  viewport.innerHTML = "";
+  
+  const history = sessionsMap[currentSessionId]?.history || [];
+  if (history.length === 0) {
+    viewport.innerHTML = `
+      <div class="turn-row">
+        <div class="turn-spark-icon icon-gemini">✦</div>
+        <div class="turn-body">
+          <div class="turn-header">Gemini</div>
+          <div class="turn-text">
+            <p>Hello! I am <b>Gemini</b> (powered by Joy Saha's unofficial client engine).</p>
+            <p>How can I help you today? You can ask questions, upload images, or generate media concepts!</p>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  for (const turn of history) {
+    appendTurnToDOM(turn.role, turn.content, turn.image, turn.audio, turn.video);
+  }
+  viewport.scrollTop = viewport.scrollHeight;
+}
+
+function appendTurnToDOM(role, text, imgData = null, audioEnabled = false, videoEnabled = false) {
+  const viewport = document.getElementById("chatViewport");
+  const row = document.createElement("div");
+  row.className = "turn-row";
+
+  const isUser = role === "user";
+  const iconClass = isUser ? "icon-user" : "icon-gemini";
+  const iconSymbol = isUser ? "🧑" : "✦";
+  const roleTitle = isUser ? "You" : "Gemini";
+
+  let mediaContent = "";
+  if (imgData) {
+    mediaContent += `<br/><img src="${imgData}" class="turn-media-preview" alt="attachment"/>`;
+  }
+  if (audioEnabled) {
+    mediaContent += `<div class="turn-action-bar"><button class="action-btn" onclick="playAudioTTS(this)">🔊 Listen to Response</button></div>`;
+  }
+  if (videoEnabled) {
+    mediaContent += `<div class="turn-action-bar"><span class="action-btn" style="color:var(--gemini-blue);">🎥 Video Concept Rendered</span></div>`;
+  }
+
+  const htmlFormatted = marked.parse(text);
+
+  row.innerHTML = `
+    <div class="turn-spark-icon ${iconClass}">${iconSymbol}</div>
+    <div class="turn-body">
+      <div class="turn-header">${roleTitle}</div>
+      <div class="turn-text">${htmlFormatted} ${mediaContent}</div>
+    </div>
+  `;
+  viewport.appendChild(row);
+  viewport.scrollTop = viewport.scrollHeight;
+}
+
+/* File Attachment & Media Controls */
+function onFilePicked(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    activeAttachment = { base64: evt.target.result, filename: file.name };
+    document.getElementById("attachImgThumb").src = evt.target.result;
+    document.getElementById("attachName").innerText = file.name;
+    document.getElementById("attachPreviewStrip").style.display = "flex";
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearAttachment() {
+  activeAttachment = null;
+  document.getElementById("attachPreviewStrip").style.display = "none";
+  document.getElementById("imageFileInput").value = "";
+}
+
+function addVideoConceptTag() {
+  const input = document.getElementById("chatPromptInput");
+  input.value = "[Generate Video Concept] " + input.value;
+  input.focus();
+}
+
+function triggerMicInput() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert("Speech recognition is not supported in this browser.");
+    return;
+  }
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const rec = new SpeechRec();
+  const btn = document.getElementById("btnMicInput");
+  btn.style.color = "#f87171";
+
+  rec.onresult = function(e) {
+    document.getElementById("chatPromptInput").value = e.results[0][0].transcript;
+    btn.style.color = "var(--text-sub)";
+  };
+  rec.onerror = rec.onend = function() {
+    btn.style.color = "var(--text-sub)";
+  };
+  rec.start();
+}
+
+function playAudioTTS(btn) {
+  const parent = btn.closest('.turn-body');
+  const text = parent.querySelector('.turn-text').innerText;
+  const utter = new SpeechSynthesisUtterance(text);
+  window.speechSynthesis.speak(utter);
+}
+
+function handleInputKeydown(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    submitUserChat();
+  }
+}
+
+async function submitUserChat() {
+  const input = document.getElementById("chatPromptInput");
+  const promptText = input.value.trim();
+  if (!promptText && !activeAttachment) return;
+
+  const model = document.getElementById("chatModelPicker").value;
+  const imgData = activeAttachment ? activeAttachment.base64 : null;
+
+  // Add User turn
+  appendTurnToDOM("user", promptText, imgData);
+
+  // Store in Session
+  if (!sessionsMap[currentSessionId]) startNewChatSession();
+  if (sessionsMap[currentSessionId].history.length === 0) {
+    sessionsMap[currentSessionId].title = promptText.slice(0, 24) || "Attachment";
+  }
+  sessionsMap[currentSessionId].history.push({ role: "user", content: promptText, image: imgData });
+  saveSessionsToDisk();
+  renderSidebarHistory();
+
+  // Reset Input
+  input.value = "";
+  clearAttachment();
+
+  const isVideoReq = promptText.includes("[Generate Video");
 
   try {
-    const res = await fetch(`${base}/v1/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const res = await fetch("/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: 'gemini-2.5-flash',
-        messages: [{ role: 'user', content: prompt }],
-        stream: true,
-      }),
-      signal: streamController.signal,
+        model: model,
+        messages: [{ role: "user", content: promptText }]
+      })
     });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const text = decoder.decode(value, { stream: true });
-      const lines = text.split('\n');
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') break;
-        try {
-          const obj = JSON.parse(data);
-          const chunk = obj.choices?.[0]?.delta?.content ?? '';
-          if (chunk) { out.textContent += chunk; tokens++; out.scrollTop = out.scrollHeight; }
-        } catch { /* skip parse errors */ }
-      }
+    const data = await res.json();
+    let reply = "No content returned.";
+    if (data.choices && data.choices[0]) {
+      reply = data.choices[0].message.content;
+    } else if (data.error) {
+      reply = `⚠️ Error: ${data.error.message || JSON.stringify(data.error)}`;
     }
-    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-    stats.textContent = `Completed in ${elapsed}s — ${tokens} chunks`;
-    status.textContent = 'Complete'; status.className = 'meta-chip meta-status-ok';
-  } catch (e) {
-    if (e.name !== 'AbortError') {
-      out.textContent += `\n\n❌ ${e.message}`;
-      status.textContent = 'Error'; status.className = 'meta-chip meta-status-err';
-    } else {
-      status.textContent = 'Stopped'; status.className = 'meta-chip optional-badge';
-    }
-  } finally {
-    streamController = null;
-    btn.textContent = '📡 Stream Response';
+
+    appendTurnToDOM("model", reply, null, true, isVideoReq);
+    sessionsMap[currentSessionId].history.push({ role: "model", content: reply, audio: true, video: isVideoReq });
+    saveSessionsToDisk();
+
+  } catch (err) {
+    appendTurnToDOM("model", "⚠️ Network error: " + err.message);
   }
 }
 
-/* ── Scroll-spy nav ──────────────────────────────────────────────────────── */
-const sections = document.querySelectorAll('.section');
-const navLinks  = document.querySelectorAll('.nav-link');
-const observer  = new IntersectionObserver(entries => {
-  entries.forEach(e => {
-    if (e.isIntersecting) {
-      navLinks.forEach(l => {
-        l.classList.toggle('active', l.getAttribute('href') === `#${e.target.id}`);
-      });
+/* ── Studio Config ──────────────────────────────────────────────────────── */
+async function syncStudioConfig() {
+  try {
+    const res = await fetch("/api/config");
+    const data = await res.json();
+    document.getElementById("psidInput").value = data.cookies["__Secure-1PSID"] || "";
+    document.getElementById("psidtsInput").value = data.cookies["__Secure-1PSIDTS"] || "";
+
+    const list = document.getElementById("studioKeysList");
+    list.innerHTML = "";
+    for (const [key, info] of Object.entries(data.api_keys)) {
+      list.innerHTML += `
+        <div style="display:flex;justify-content:space-between;align-items:center;background:var(--gemini-bg);padding:8px 12px;border-radius:6px;font-family:var(--font-mono);font-size:12px;margin-bottom:6px;">
+          <span>🔑 <b>${info.name}</b>: ${key}</span>
+          <button style="background:none;border:none;color:#f87171;cursor:pointer;" onclick="deleteKey('${key}')">✕</button>
+        </div>
+      `;
     }
+  } catch (e) {}
+}
+
+async function saveSessionCookies() {
+  const psid = document.getElementById("psidInput").value;
+  const psidts = document.getElementById("psidtsInput").value;
+  await fetch("/api/cookies", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ "__Secure-1PSID": psid, "__Secure-1PSIDTS": psidts })
   });
-}, { rootMargin: '-20% 0px -70% 0px' });
-sections.forEach(s => observer.observe(s));
+  alert("Cookies saved!");
+}
+
+async function autoExtractBrowserCookies() {
+  const res = await fetch("/api/cookies/auto-extract", { method: "POST" });
+  const data = await res.json();
+  if (data.status === "success") {
+    alert("Extracted cookies successfully!");
+    syncStudioConfig();
+  } else {
+    alert("Auto-extract failed: " + data.detail);
+  }
+}
+
+async function createKey() {
+  const name = document.getElementById("newKeyName").value || "App Key";
+  await fetch("/api/keys", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name })
+  });
+  syncStudioConfig();
+}
+
+async function deleteKey(key) {
+  await fetch("/api/keys/" + key, { method: "DELETE" });
+  syncStudioConfig();
+}
+
+async function runLiveTest() {
+  const prompt = document.getElementById("testPromptInput").value;
+  const model = document.getElementById("studioModelSelect").value;
+  const out = document.getElementById("testJsonOutput");
+  out.innerText = "Executing test prompt...";
+
+  const res = await fetch("/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: model,
+      messages: [{ role: "user", content: prompt }]
+    })
+  });
+  const data = await res.json();
+  out.innerText = JSON.stringify(data, null, 2);
+}
+
+function renderCodeExport(lang) {
+  const box = document.getElementById("codeSnippetBox");
+  if (lang === 'python') {
+    box.innerText = `import openai\n\nclient = openai.OpenAI(base_url="http://localhost:8000/v1", api_key="YOUR_KEY")\nresponse = client.chat.completions.create(\n    model="gemini-2.5-flash",\n    messages=[{"role": "user", "content": "Hello!"}]\n)\nprint(response.choices[0].message.content)`;
+  } else if (lang === 'js') {
+    box.innerText = `const res = await fetch("http://localhost:8000/v1/chat/completions", {\n  method: "POST",\n  headers: { "Content-Type": "application/json" },\n  body: JSON.stringify({ model: "gemini-2.5-flash", messages: [{ role: "user", content: "Hello!" }] })\n});\nconst data = await res.json();\nconsole.log(data.choices[0].message.content);`;
+  } else {
+    box.innerText = `curl -X POST http://localhost:8000/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"Hello!"}]}'`;
+  }
+}
+
+/* ── Init ───────────────────────────────────────────────────────────────── */
+initChatEngine();
+renderCodeExport('python');
 </script>
 </body>
 </html>
