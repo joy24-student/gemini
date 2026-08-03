@@ -53,19 +53,20 @@ async def upload_file(
         proxies_dict = proxy # Assume it's already in the correct format
 
     try:
-        # Use AsyncSession from curl_cffi
-        async with AsyncSession(
-            proxies=proxies_dict,
-            impersonate=impersonate,
-            headers=Headers.UPLOAD.value # Pass headers directly
-            # follow_redirects is handled automatically by curl_cffi
+        import httpx
+        # Build httpx-compatible proxy: str for simple URL, None otherwise (dict proxies go via mounts)
+        httpx_proxy = proxy if isinstance(proxy, str) else (list(proxies_dict.values())[0] if proxies_dict else None)
+        async with httpx.AsyncClient(
+            proxy=httpx_proxy,
+            headers=Headers.UPLOAD.value,
+            timeout=30.0,
         ) as client:
             response = await client.post(
-                url=Endpoint.UPLOAD.value, # Use Endpoint enum
-                files={"file": file_content},
+                url=Endpoint.UPLOAD.value,
+                files={"file": ("image.png", file_content, "image/png")},
             )
-            response.raise_for_status() # Raises HTTPError for bad responses
-            return response.text
+            clean_id = response.text.replace("'", "").replace('"', "").strip()
+            return clean_id
     except HTTPError as e:
         console.log(f"[red]HTTP error during file upload: {e.response.status_code} {e}[/red]")
         raise # Re-raise HTTPError
@@ -75,33 +76,45 @@ async def upload_file(
 
 def load_cookies(cookie_path: str) -> Tuple[str, str]:
     """
-    Loads authentication cookies from a JSON file.
+    Loads authentication cookies from a JSON file (supports both dict and browser export list formats).
 
     Args:
         cookie_path (str): Path to the JSON file containing cookies.
 
     Returns:
         tuple[str, str]: Tuple containing __Secure-1PSID and __Secure-1PSIDTS cookie values.
-
-    Raises:
-        Exception: If the file is not found, invalid, or required cookies are missing.
     """
     try:
-        with open(cookie_path, 'r', encoding='utf-8') as file: # Added encoding
-            cookies = json.load(file)
-        # Handle potential variations in cookie names (case-insensitivity)
-        session_auth1 = next((item['value'] for item in cookies if item['name'].upper() == '__SECURE-1PSID'), None)
-        session_auth2 = next((item['value'] for item in cookies if item['name'].upper() == '__SECURE-1PSIDTS'), None)
+        with open(cookie_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
 
-        if not session_auth1 or not session_auth2:
-             raise StopIteration("Required cookies (__Secure-1PSID or __Secure-1PSIDTS) not found.")
+        psid = ""
+        psidts = ""
 
-        return session_auth1, session_auth2
+        if isinstance(data, dict):
+            for k, v in data.items():
+                if k.upper() == "__SECURE-1PSID":
+                    psid = str(v)
+                elif k.upper() == "__SECURE-1PSIDTS":
+                    psidts = str(v)
+        elif isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict):
+                    name = str(item.get("name", "")).upper()
+                    val = str(item.get("value", ""))
+                    if name == "__SECURE-1PSID":
+                        psid = val
+                    elif name == "__SECURE-1PSIDTS":
+                        psidts = val
+
+        if not psid:
+            raise ValueError("Required cookie __Secure-1PSID not found in cookie file.")
+
+        return psid, psidts
+
     except FileNotFoundError:
         raise Exception(f"Cookie file not found at path: {cookie_path}")
     except json.JSONDecodeError:
         raise Exception("Invalid JSON format in the cookie file.")
-    except StopIteration as e:
-        raise Exception(f"{e} Check the cookie file format and content.")
-    except Exception as e: # Catch other potential errors
-        raise Exception(f"An unexpected error occurred while loading cookies: {e}")
+    except Exception as e:
+        raise Exception(f"Error loading cookies from {cookie_path}: {e}")

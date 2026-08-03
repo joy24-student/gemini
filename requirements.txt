@@ -1,5 +1,39 @@
-curl_cffi>=0.5.9
-pydantic>=2.0
-rich>=10.0
-requests>=2.20
-browser-cookie3>=0.20.1
+# ── Gemini Unofficial Client API — Full Dependencies ──────────────────────────
+# Python >= 3.10 required (uses asyncio.to_thread, dataclass slots=True)
+
+# ── Core HTTP & Authentication ────────────────────────────────────────────────
+curl_cffi>=0.7.0            # HTTP/2 client with Chrome TLS fingerprint impersonation
+httpx[http2]>=0.27.0        # Async HTTP/2 client (core.py, utils.py)
+requests>=2.31.0            # Standard HTTP (legacy compatibility)
+browser-cookie3>=0.20.1     # Auto-extract cookies from Chrome/Edge/Firefox/Brave
+
+# ── Data & Serialization ──────────────────────────────────────────────────────
+pydantic>=2.0               # Request/response models & validation
+orjson>=3.9.0               # Fast JSON parsing (3x–5x speedup vs stdlib json)
+
+# ── Terminal & Logging ────────────────────────────────────────────────────────
+rich>=13.0                  # Rich terminal output, logging, markdown rendering
+
+# ── REST API Server ───────────────────────────────────────────────────────────
+fastapi>=0.111.0            # OpenAI-compatible REST API server
+uvicorn[standard]>=0.30.0   # ASGI server for FastAPI (includes websockets, httptools)
+
+# ── Observability ─────────────────────────────────────────────────────────────
+prometheus-client>=0.20.0   # Prometheus metrics (/metrics endpoint)
+
+# ── Real-Time Voice & Audio ───────────────────────────────────────────────────
+edge-tts>=6.1.9             # Microsoft Edge TTS synthesis for live voice pipeline
+websockets>=12.0            # WebSocket bridge server (UnofficialLiveBridgeServer)
+
+# ── Optional: Live Voice Playback ─────────────────────────────────────────────
+# pyaudio>=0.2.14           # PCM audio playback (uncomment if using voice output)
+                            # Windows: pip install pipwin && pipwin install pyaudio
+                            # Linux:   sudo apt install python3-pyaudio
+                            # macOS:   brew install portaudio && pip install pyaudio
+
+# ── Optional: Playwright Headless Engine ──────────────────────────────────────
+# playwright>=1.44.0        # Headless Chromium engine (uncomment if using PlaywrightLiveSession)
+                            # After install: playwright install chromium
+
+# ── Optional: Speech Recognition ─────────────────────────────────────────────
+# SpeechRecognition>=3.10.0 # Microphone input for voice conversations

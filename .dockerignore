@@ -1,0 +1,58 @@
+# Git
+.git
+.gitignore
+
+# Docs (served by nginx, not needed in container)
+docs/
+*.md
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Node / Vercel
+node_modules/
+.vercel/
+api/
+
+# Secrets — NEVER bake into image
+cookies.json
+.env
+*.env
+*.secret
+server_config.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile*
+docker-compose*
+nginx/
+monitoring/

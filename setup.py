@@ -21,7 +21,7 @@ setup(
         "Topic :: Internet :: WWW/HTTP",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ],
-    python_requires=">=3.7", # Based on f-strings, asyncio, pydantic v2 features
+    python_requires=">=3.10",  # Uses asyncio.to_thread (3.9+) and dataclass slots=True (3.10+)
     install_requires=[
         "curl_cffi>=0.5.9",
         "pydantic>=2.0",

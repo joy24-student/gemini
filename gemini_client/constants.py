@@ -40,7 +40,13 @@ class URLs(Enum):
     BOT_SERVER = "boq_assistant-bard-web-server_20240227.13_p0"
 
 
-class Headers:
+class LegacyHeaders:
+    """Legacy HTTP headers used by internal Bard/Gemini web API scraping.
+    
+    Note: These are separate from the Headers enum in enums.py which is
+    used by the curl_cffi-based AsyncChatbot. These headers are retained
+    for reference and legacy compatibility only.
+    """
     COMMON = {
         "Accept": "*/*",
         "Accept-Language": "en-US,en;q=0.5",
