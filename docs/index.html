@@ -970,9 +970,11 @@ async function sendUserPrompt() {
   let accumulatedText = "";
 
   try {
+    const chatHeaders = { "Content-Type": "application/json" };
+    if (activeStudioApiKey) chatHeaders["Authorization"] = "Bearer " + activeStudioApiKey;
     const res = await fetch("/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: chatHeaders,
       body: JSON.stringify({
         model: selectedModelCode,
         messages: [{ role: "user", content: promptText }],
@@ -1025,12 +1027,17 @@ async function sendUserPrompt() {
 }
 
 /* ── Studio Functions ────────────────────────────────────────────────────── */
+let activeStudioApiKey = "";
+
 async function loadStudioData() {
   try {
     const res = await fetch("/api/config");
     const data = await res.json();
     document.getElementById("psidVal").value = data.cookies["__Secure-1PSID"] || "";
     document.getElementById("psidtsVal").value = data.cookies["__Secure-1PSIDTS"] || "";
+
+    const keys = Object.keys(data.api_keys || {});
+    if (keys.length > 0) activeStudioApiKey = keys[0];
 
     const box = document.getElementById("keysBox");
     box.innerHTML = "";
@@ -1087,9 +1094,12 @@ async function executeTestPrompt() {
   const out = document.getElementById("studioJsonOut");
   out.innerText = "Executing prompt...";
 
+  const studioHeaders = { "Content-Type": "application/json" };
+  if (activeStudioApiKey) studioHeaders["Authorization"] = "Bearer " + activeStudioApiKey;
+
   const res = await fetch("/v1/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: studioHeaders,
     body: JSON.stringify({
       model: selectedModelCode,
       messages: [{ role: "user", content: prompt }]
