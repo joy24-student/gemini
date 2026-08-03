@@ -4670,6 +4670,12 @@
         container.textContent = source;
       }
       decorateCodeBlocks(container);
+      $$("a[href='#studio']", container).forEach(link => {
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          switchView("studio");
+        });
+      });
     }
 
     function decorateCodeBlocks(container) {
@@ -4862,7 +4868,9 @@
           });
         }
 
-        assistantTurn.content = accumulated || "Gateway Notice: No response content was returned. Please verify your session cookies (__Secure-1PSID) in AI Studio or check server logs.";
+        if (!accumulated) {
+          assistantTurn.content = "**Gateway Notice**: No response content was returned by Gemini.\n\nYour session cookies (`__Secure-1PSID`) may be unconfigured, invalid, or expired.\n\n[👉 Click here to Open AI Studio & Configure Cookies](#studio)";
+        }
         renderMarkdown(body, assistantTurn.content);
         chat.updatedAt = Date.now();
         saveState();

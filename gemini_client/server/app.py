@@ -111,23 +111,27 @@ async def get_engine() -> HighScaleSupportEngine:
     global ACTIVE_ENGINE
     async with ENGINE_LOCK:
         if ACTIVE_ENGINE is None:
-            psid = COOKIES.get("__Secure-1PSID")
-            psidts = COOKIES.get("__Secure-1PSIDTS")
+            psid = (COOKIES.get("__Secure-1PSID") or "").strip()
+            psidts = (COOKIES.get("__Secure-1PSIDTS") or "").strip()
 
             if not psid:
                 try:
                     extractor = CookieExtractor()
                     extracted = extractor.extract_cookies(save_to_disk=False)
-                    psid = extracted.get("__Secure-1PSID", "")
-                    psidts = extracted.get("__Secure-1PSIDTS", "")
-                    COOKIES["__Secure-1PSID"] = psid
-                    COOKIES["__Secure-1PSIDTS"] = psidts
-                    save_server_config()
-                except Exception as e:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"No session cookies configured. Error: {e}",
-                    )
+                    psid = (extracted.get("__Secure-1PSID") or "").strip()
+                    psidts = (extracted.get("__Secure-1PSIDTS") or "").strip()
+                    if psid:
+                        COOKIES["__Secure-1PSID"] = psid
+                        COOKIES["__Secure-1PSIDTS"] = psidts
+                        save_server_config()
+                except Exception:
+                    pass
+
+            if not psid:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No valid Gemini session cookies configured. Please open the AI Studio tab in this app, paste your __Secure-1PSID cookie value from gemini.google.com, or click 'Auto-extract browser cookies'.",
+                )
 
             ACTIVE_ENGINE = HighScaleSupportEngine(
                 max_concurrent=200,
