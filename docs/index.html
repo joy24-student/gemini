@@ -3,22 +3,27 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Google Gemini — AI Studio Portal by Joy Saha</title>
-<meta name="description" content="100% Pixel-Perfect Google Gemini Web UI Replica & Enterprise AI Studio Portal created by Joy Saha."/>
+<title>Google Gemini — Enterprise AI Studio & Chat Portal by Joy Saha</title>
+<meta name="description" content="Enterprise-grade Gemini Chat Web UI, Interactive AI Studio, & Developer Portal created by Joy Saha."/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/php.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.1/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
-/* ── Official Google Gemini Dark Color Palette ───────────────────────────── */
+/* ── Official Google Gemini Dark Theme Tokens ───────────────────────────── */
 :root {
   --g-bg:            #131314;
   --g-surface:       #1e1e1f;
   --g-surface-hover: #282a2c;
+  --g-hover:         #333538;
   --g-border:        #2a2b2d;
   --g-border-hover:  #3c4043;
   --g-text:          #e3e3e3;
@@ -28,10 +33,14 @@
   --g-blue-btn:      #1a73e8;
   --g-user-bubble:   #282a2c;
   --g-spark:         linear-gradient(135deg, #4285f4 0%, #9b51e0 35%, #e91e63 70%, #fbbc04 100%);
+  --cyan:            #22d3ee;
+  --green:           #34d399;
+  --yellow:          #fbbf24;
+  --red:             #f87171;
   --font-g:          'Google Sans', 'Inter', system-ui, sans-serif;
   --font-mono:       'JetBrains Mono', monospace;
   --header-h:        56px;
-  --sidebar-w:       260px;
+  --sidebar-w:       280px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -80,13 +89,13 @@ header {
 }
 .btn-upgrade-pill:hover { background: rgba(168,199,250,0.2); }
 
-/* ── Main Stage Layout ─────────────────────────────────────────────────── */
+/* ── Container Layout ────────────────────────────────────────────────────── */
 .app-stage { margin-top: var(--header-h); height: calc(100vh - var(--header-h)); display: flex; overflow: hidden; }
 .app-view { display: none; height: 100%; width: 100%; }
 .app-view.active { display: flex; }
 
 /* ═════════════════════════════════════════════════════════════════════════ */
-/* VIEW 1: 100% PIXEL PERFECT GEMINI CHAT                                    */
+/* VIEW 1: 100% PIXEL PERFECT GEMINI CHAT                                   */
 /* ═════════════════════════════════════════════════════════════════════════ */
 #view-chat { background: var(--g-bg); flex: 1; }
 
@@ -98,17 +107,28 @@ header {
 .g-sidebar.collapsed { width: 68px; }
 .g-sidebar.collapsed .sidebar-text,
 .g-sidebar.collapsed .sidebar-section-title,
-.g-sidebar.collapsed .profile-name { display: none; }
+.g-sidebar.collapsed .profile-name,
+.g-sidebar.collapsed .search-box { display: none; }
 
 .btn-new-chat {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 16px; background: var(--g-surface-hover); border: 1px solid var(--g-border);
   border-radius: 24px; color: var(--g-text); font-size: 14px; font-weight: 500;
-  cursor: pointer; transition: all 0.2s; margin-bottom: 12px; text-decoration: none;
+  cursor: pointer; transition: all 0.2s; margin-bottom: 8px; text-decoration: none;
 }
 .btn-new-chat:hover { background: #333538; border-color: var(--g-border-hover); }
 
-.sidebar-nav-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; }
+/* Search Filter Box in Sidebar */
+.search-box {
+  background: var(--g-bg); border: 1px solid var(--g-border); border-radius: 18px;
+  padding: 6px 12px; display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.search-input {
+  background: transparent; border: none; outline: none; color: var(--g-text);
+  font-size: 12.5px; font-family: var(--font-g); width: 100%;
+}
+
+.sidebar-nav-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
 .nav-item-link {
   display: flex; align-items: center; gap: 14px; padding: 8px 14px;
   border-radius: 20px; font-size: 13.5px; color: var(--g-subtext); text-decoration: none; cursor: pointer;
@@ -116,7 +136,7 @@ header {
 }
 .nav-item-link:hover { background: var(--g-surface-hover); color: var(--g-text); }
 
-.sidebar-section-title { font-size: 11px; font-weight: 700; color: var(--g-muted); padding: 8px 14px 4px; text-transform: uppercase; }
+.sidebar-section-title { font-size: 11px; font-weight: 700; color: var(--g-muted); padding: 8px 14px 4px; text-transform: uppercase; display: flex; justify-content: space-between; }
 .history-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 .history-pill {
   padding: 8px 14px; border-radius: 18px; font-size: 13px; color: var(--g-subtext);
@@ -125,8 +145,10 @@ header {
 }
 .history-pill:hover { background: var(--g-surface-hover); color: var(--g-text); }
 .history-pill.active { background: var(--g-surface-hover); color: var(--g-text); font-weight: 500; }
-.history-pill .pill-del { opacity: 0; color: #f87171; font-size: 12px; }
-.history-pill:hover .pill-del { opacity: 1; }
+.pill-actions { opacity: 0; display: flex; gap: 4px; }
+.history-pill:hover .pill-actions { opacity: 1; }
+.pill-act-btn { color: var(--g-muted); font-size: 12px; cursor: pointer; padding: 0 3px; }
+.pill-act-btn:hover { color: var(--g-text); }
 
 .profile-footer {
   padding-top: 10px; border-top: 1px solid var(--g-border);
@@ -139,10 +161,10 @@ header {
 .profile-info { flex: 1; margin-left: 10px; font-size: 12px; font-weight: 600; color: var(--g-text); text-decoration: none; }
 .profile-info:hover { color: var(--g-blue); }
 
-/* Main Chat Experience */
+/* Main Chat Stage */
 .g-chat-stage { flex: 1; display: flex; flex-direction: column; background: var(--g-bg); position: relative; }
 
-/* Centered Landing View when no messages */
+/* Landing View */
 .g-landing-hero {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
   padding: 0 20px; text-align: center;
@@ -168,15 +190,46 @@ header {
 }
 .user-bubble-clear { clear: both; }
 
+/* Extended Thinking Drawer Component */
+.thinking-drawer {
+  background: var(--g-surface); border: 1px solid var(--g-border); border-radius: 12px;
+  margin: 8px 0 14px; overflow: hidden;
+}
+.thinking-header {
+  padding: 8px 14px; font-size: 12.5px; font-weight: 600; color: var(--g-blue);
+  cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  background: rgba(168,199,250,0.06);
+}
+.thinking-body {
+  padding: 12px 14px; font-size: 13px; color: var(--g-subtext); border-top: 1px solid var(--g-border);
+  display: none; font-family: var(--font-mono); white-space: pre-wrap; background: #000;
+}
+.thinking-drawer.open .thinking-body { display: block; }
+
+/* Animated Waveform for Speech Output */
+.waveform-box {
+  display: inline-flex; align-items: center; gap: 3px; height: 16px; margin-left: 8px;
+}
+.wave-bar {
+  width: 3px; height: 100%; background: var(--g-blue); border-radius: 2px;
+  animation: wavePulse 1s ease-in-out infinite alternate;
+}
+.wave-bar:nth-child(2) { animation-delay: 0.2s; }
+.wave-bar:nth-child(3) { animation-delay: 0.4s; }
+.wave-bar:nth-child(4) { animation-delay: 0.6s; }
+@keyframes wavePulse { 0% { height: 4px; } 100% { height: 16px; } }
+
 .turn-body { color: var(--g-text); margin-bottom: 8px; }
 .turn-body p { margin-bottom: 12px; }
 .turn-body pre { margin: 14px 0; border-radius: 12px; background: #000 !important; border: 1px solid var(--g-border); overflow: hidden; }
 .turn-body code { font-family: var(--font-mono); font-size: 13.5px; }
 
+.turn-media-preview { max-width: 280px; max-height: 200px; border-radius: 12px; border: 1px solid var(--g-border); margin-top: 10px; object-fit: cover; cursor: pointer; }
+
 .turn-actions { display: flex; gap: 8px; margin-top: 8px; }
 .icon-action-btn {
   background: transparent; border: none; color: var(--g-muted); font-size: 14px;
-  width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: justify-center;
+  width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   cursor: pointer; transition: all 0.15s;
 }
 .icon-action-btn:hover { background: var(--g-surface-hover); color: var(--g-text); }
@@ -192,10 +245,10 @@ header {
 }
 .g-dock-container:focus-within { border-color: var(--g-border-hover); box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
 
-/* Model Picker Popup Dropdown (Matching Image 1 Exactly!) */
+/* Model Selector Popup Dropdown */
 .model-dropdown-popup {
   position: absolute; bottom: 64px; right: 16px; z-index: 2000;
-  width: 260px; background: var(--g-surface-hover); border: 1px solid var(--g-border-hover);
+  width: 270px; background: var(--g-surface-hover); border: 1px solid var(--g-border-hover);
   border-radius: 16px; padding: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.6);
   display: none; flex-direction: column; gap: 2px;
 }
@@ -244,13 +297,28 @@ header {
 }
 .dock-mic-btn:hover { background: var(--g-surface-hover); color: var(--g-text); }
 
+.send-circle-btn {
+  background: var(--g-text); color: var(--g-bg); border: none;
+  width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s;
+}
+.send-circle-btn:hover { background: var(--g-blue); transform: scale(1.05); }
+
 .dock-disclaimer { font-size: 12px; color: var(--g-muted); margin-top: 8px; text-align: center; }
+
+/* Image Lightbox Modal */
+.lightbox-overlay {
+  position: fixed; inset: 0; z-index: 5000; background: rgba(0,0,0,0.85);
+  display: none; align-items: center; justify-content: center; backdrop-filter: blur(10px);
+}
+.lightbox-overlay.open { display: flex; }
+.lightbox-img { max-width: 90vw; max-height: 90vh; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.8); }
 
 /* ═════════════════════════════════════════════════════════════════════════ */
 /* VIEW 2: AI STUDIO PLAYGROUND                                              */
 /* ═════════════════════════════════════════════════════════════════════════ */
 #view-studio { padding: 32px 48px; display: flex; flex-direction: column; gap: 24px; overflow-y: auto; }
-.studio-grid-2 { display: grid; grid-template-columns: 340px 1fr; gap: 24px; }
+.studio-grid-2 { display: grid; grid-template-columns: 360px 1fr; gap: 24px; }
 @media (max-width: 1000px) { .studio-grid-2 { grid-template-columns: 1fr; } }
 
 .s-card { background: var(--g-surface); border: 1px solid var(--g-border); border-radius: 16px; padding: 24px; }
@@ -263,15 +331,25 @@ header {
   padding: 10px 14px; border-radius: 8px; font-size: 13px; outline: none; font-family: var(--font-g);
 }
 
-.btn-g-blue { background: var(--g-blue-btn); color: #fff; font-weight: 600; border: none; padding: 8px 18px; border-radius: 20px; cursor: pointer; }
+.btn-g-blue { background: var(--g-blue-btn); color: #fff; font-weight: 600; border: none; padding: 8px 18px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
+.btn-g-blue:hover { opacity: 0.9; }
 
 /* ═════════════════════════════════════════════════════════════════════════ */
 /* VIEW 3: DOCUMENTATION PORTAL                                             */
 /* ═════════════════════════════════════════════════════════════════════════ */
 #view-docs { padding: 32px 48px; display: flex; flex-direction: column; gap: 28px; max-width: 1100px; margin: 0 auto; overflow-y: auto; }
-.d-card { background: var(--g-surface); border: 1px solid var(--g-border); border-radius: 16px; padding: 24px; }
-.d-h1 { font-size: 20px; font-weight: 700; color: var(--g-blue); margin-bottom: 8px; }
+.d-card { background: var(--g-surface); border: 1px solid var(--g-border); border-radius: 16px; padding: 28px; }
+.d-h1 { font-size: 22px; font-weight: 700; color: var(--g-blue); margin-bottom: 8px; }
 .d-p { color: var(--g-subtext); font-size: 14px; margin-bottom: 14px; }
+
+.table-api { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 12px; }
+.table-api th { text-align: left; padding: 10px 14px; background: var(--g-bg); color: var(--g-muted); font-size: 11px; text-transform: uppercase; }
+.table-api td { padding: 12px 14px; border-bottom: 1px solid var(--g-border); }
+
+/* Language Exporter Tabs */
+.lang-exporter-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.lang-tab { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; background: var(--g-bg); border: 1px solid var(--g-border); color: var(--g-subtext); cursor: pointer; }
+.lang-tab.active { background: var(--g-blue-btn); color: #fff; border-color: var(--g-blue-btn); }
 </style>
 </head>
 <body>
@@ -309,14 +387,17 @@ header {
     <!-- Sidebar (Matching Image 1 & Image 2) -->
     <div class="g-sidebar" id="gSidebar">
       <button class="btn-new-chat" onclick="createNewChatSession()">
-        <span class="plus-icon">+</span>
+        <span style="font-size:18px;color:var(--g-blue);">+</span>
         <span class="sidebar-text">New chat</span>
       </button>
 
+      <!-- Sidebar Search Filter Box -->
+      <div class="search-box">
+        <span>🔍</span>
+        <input type="text" class="search-input" id="searchChatsInput" placeholder="Search chats..." oninput="filterChatHistory()"/>
+      </div>
+
       <div class="sidebar-nav-list">
-        <a class="nav-item-link" onclick="createNewChatSession()">
-          <span>🔍</span><span class="sidebar-text">Search chats</span>
-        </a>
         <a class="nav-item-link">
           <span>🖼</span><span class="sidebar-text">Images</span>
         </a>
@@ -333,10 +414,11 @@ header {
         <a class="nav-item-link"><span style="color:var(--g-blue);">+</span><span class="sidebar-text">New notebook</span></a>
       </div>
 
-      <div class="sidebar-section-title">Recents</div>
-      <div class="history-scroll" id="historyListPills">
-        <!-- Dynamic chat history list -->
+      <div class="sidebar-section-title">
+        <span>Recents</span>
+        <span style="cursor:pointer;font-size:10px;color:#f87171;" onclick="exportCurrentChat('markdown')">Export</span>
       </div>
+      <div class="history-scroll" id="historyListPills"></div>
 
       <div class="profile-footer">
         <div class="profile-avatar-circle">B</div>
@@ -427,7 +509,7 @@ header {
   <div id="view-studio" class="app-view">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <div>
-        <h2 style="font-size:22px;font-weight:700;">⚡ AI Studio Playground & Configuration</h2>
+        <h2 style="font-size:22px;font-weight:700;">⚡ AI Studio Playground & Real-Time Inspector</h2>
         <p style="color:var(--g-subtext);font-size:13.5px;">Manage Google session cookies, parameters, and code exports.</p>
       </div>
       <button class="btn-g-blue" onclick="autoExtractCookies()">⚡ Auto-Extract Cookies</button>
@@ -472,18 +554,60 @@ header {
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
-  <!-- TAB 3: DOCUMENTATION                                                   -->
+  <!-- TAB 3: DOCUMENTATION PORTAL                                             -->
   <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <div id="view-docs" class="app-view">
     <div class="d-card">
-      <div class="d-h1">📖 API Reference & System Overview</div>
-      <div class="d-p">Created by <b><a href="https://sahajoy.vercel.app/" target="_blank" style="color:var(--g-blue);">Joy Saha</a></b>. Self-hosted OpenAI-compatible REST API gateway for Google Gemini Web UI.</div>
+      <div class="d-h1">📖 Architecture & System Sequence Diagrams</div>
+      <div class="d-p">Created by <b><a href="https://sahajoy.vercel.app/" target="_blank" style="color:var(--g-blue);">Joy Saha</a></b>. Reverse-engineered HTTP/2 StreamGenerate RPC pipeline overview:</div>
+      
+      <div class="mermaid" style="background:var(--g-bg);padding:16px;border-radius:12px;margin:16px 0;">
+sequenceDiagram
+    autonumber
+    Client->>FastAPI Server: POST /v1/chat/completions (stream=true)
+    FastAPI Server->>CookiePool: Dispatch next healthy account pair
+    CookiePool-->>FastAPI Server: __Secure-1PSID + __Secure-1PSIDTS
+    FastAPI Server->>curl_cffi Client: Execute HTTP/2 TLS Chrome Fingerprint Request
+    curl_cffi Client->>Google Gemini Web UI: StreamGenerate RPC (f.req)
+    Google Gemini Web UI-->>curl_cffi Client: wrb.fr Chunk Array Stream
+    curl_cffi Client-->>FastAPI Server: Adaptive Schema Walker extraction
+    FastAPI Server-->>Client: Real-Time SSE Token Stream (data: {...})
+      </div>
+    </div>
+
+    <div class="d-card">
+      <div class="d-h1">💻 Multilingual Code Generator</div>
+      <div class="lang-exporter-tabs">
+        <button class="lang-tab active" onclick="showLangCode('python')">Python</button>
+        <button class="lang-tab" onclick="showLangCode('js')">Node.js / TS</button>
+        <button class="lang-tab" onclick="showLangCode('curl')">cURL</button>
+        <button class="lang-tab" onclick="showLangCode('go')">Go</button>
+        <button class="lang-tab" onclick="showLangCode('rust')">Rust</button>
+        <button class="lang-tab" onclick="showLangCode('php')">PHP</button>
+      </div>
+      <pre style="background:var(--g-bg);padding:14px;border-radius:10px;font-family:var(--font-mono);font-size:13px;" id="langCodeBox"></pre>
+    </div>
+
+    <div class="d-card">
+      <div class="d-h1">🐳 Docker & Vercel Deployment</div>
+      <pre style="background:var(--g-bg);padding:14px;border-radius:10px;font-family:var(--font-mono);font-size:13px;color:var(--g-blue);"># Docker VPS:
+docker compose -f docker/docker-compose.yml up -d --build
+
+# Vercel Serverless:
+vercel --prod</pre>
     </div>
   </div>
 
 </div>
 
+<!-- Lightbox Modal -->
+<div class="lightbox-overlay" id="lightboxModal" onclick="this.classList.remove('open')">
+  <img id="lightboxImg" class="lightbox-img" src="" alt="Full resolution view"/>
+</div>
+
 <script>
+mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
 /* ── State & Storage ─────────────────────────────────────────────────────── */
 let activeChatId = "default";
 let chatData = JSON.parse(localStorage.getItem("g_chat_history_data") || "{}");
@@ -532,6 +656,12 @@ function selectModelOption(displayLabel, modelCode) {
   event.currentTarget.classList.add('selected');
 }
 
+/* ── Search Chat History ─────────────────────────────────────────────────── */
+function filterChatHistory() {
+  const query = document.getElementById("searchChatsInput").value.toLowerCase();
+  renderHistoryPills(query);
+}
+
 /* ── Chat Management & History ────────────────────────────────────────────── */
 function initChatSystem() {
   if (!chatData[activeChatId]) {
@@ -541,16 +671,22 @@ function initChatSystem() {
   renderTurnViewport();
 }
 
-function renderHistoryPills() {
+function renderHistoryPills(filter = "") {
   const container = document.getElementById("historyListPills");
   container.innerHTML = "";
   for (const [id, session] of Object.entries(chatData)) {
+    const title = session.title || 'Conversation';
+    if (filter && !title.toLowerCase().includes(filter)) continue;
+
     const pill = document.createElement("div");
     pill.className = `history-pill ${id === activeChatId ? 'active' : ''}`;
     pill.onclick = () => switchChatSession(id);
     pill.innerHTML = `
-      <span>${session.title || 'Conversation'}</span>
-      <span class="pill-del" onclick="deleteSession(event, '${id}')">✕</span>
+      <span>${title}</span>
+      <div class="pill-actions">
+        <span class="pill-act-btn" onclick="renameSession(event, '${id}')" title="Rename">✏️</span>
+        <span class="pill-act-btn" onclick="deleteSession(event, '${id}')" title="Delete">✕</span>
+      </div>
     `;
     container.appendChild(pill);
   }
@@ -570,6 +706,16 @@ function createNewChatSession() {
   renderTurnViewport();
 }
 
+function renameSession(e, id) {
+  e.stopPropagation();
+  const newName = prompt("Enter new title for conversation:", chatData[id]?.title || "");
+  if (newName) {
+    chatData[id].title = newName;
+    saveChatData();
+    renderHistoryPills();
+  }
+}
+
 function deleteSession(e, id) {
   e.stopPropagation();
   delete chatData[id];
@@ -582,6 +728,21 @@ function deleteSession(e, id) {
   saveChatData();
   renderHistoryPills();
   renderTurnViewport();
+}
+
+function exportCurrentChat(format) {
+  const turns = chatData[activeChatId]?.turns || [];
+  let content = "";
+  if (format === 'markdown') {
+    content = turns.map(t => `### ${t.role.toUpperCase()}\n${t.content}\n`).join("\n---\n\n");
+  } else {
+    content = JSON.stringify(turns, null, 2);
+  }
+  const blob = new Blob([content], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `chat_export_${activeChatId}.${format === 'markdown' ? 'md' : 'json'}`;
+  a.click();
 }
 
 function renderTurnViewport() {
@@ -600,19 +761,19 @@ function renderTurnViewport() {
   viewport.style.display = "flex";
 
   for (const turn of turns) {
-    appendTurnUI(turn.role, turn.content, turn.image);
+    appendTurnUI(turn.role, turn.content, turn.image, turn.thinking);
   }
   viewport.scrollTop = viewport.scrollHeight;
 }
 
-function appendTurnUI(role, content, imgData = null) {
+function appendTurnUI(role, content, imgData = null, thinkingTrace = null) {
   const viewport = document.getElementById("turnViewport");
   const isUser = role === "user";
 
   if (isUser) {
     const userWrap = document.createElement("div");
     userWrap.className = "user-bubble-clear";
-    let imgHTML = imgData ? `<br/><img src="${imgData}" class="turn-media-preview" alt="User upload"/>` : "";
+    let imgHTML = imgData ? `<br/><img src="${imgData}" class="turn-media-preview" onclick="openLightbox('${imgData}')" alt="User upload"/>` : "";
     userWrap.innerHTML = `<div class="user-bubble">${content}${imgHTML}</div>`;
     viewport.appendChild(userWrap);
   } else {
@@ -620,10 +781,23 @@ function appendTurnUI(role, content, imgData = null) {
     turnRow.className = "chat-turn";
     const formattedMarkdown = marked.parse(content || "");
 
+    let thinkingHTML = "";
+    if (thinkingTrace || selectedModelCode.includes("thinking")) {
+      thinkingHTML = `
+        <div class="thinking-drawer">
+          <div class="thinking-header" onclick="this.parentElement.classList.toggle('open')">
+            <span>🧠 Thinking Process & Reasoning Trace</span> ▾
+          </div>
+          <div class="thinking-body">${thinkingTrace || 'Analyzing user prompt structural patterns... Evaluating response candidates.'}</div>
+        </div>
+      `;
+    }
+
     turnRow.innerHTML = `
       <div class="spark-avatar avatar-spark">✦</div>
       <div class="turn-content">
         <div class="turn-header">Gemini</div>
+        ${thinkingHTML}
         <div class="turn-body">${formattedMarkdown}</div>
         <div class="turn-actions">
           <button class="icon-action-btn" title="Good response">👍</button>
@@ -639,7 +813,12 @@ function appendTurnUI(role, content, imgData = null) {
   viewport.scrollTop = viewport.scrollHeight;
 }
 
-/* ── Attachment Handling ─────────────────────────────────────────────────── */
+/* ── Lightbox & Attachment Handling ──────────────────────────────────────── */
+function openLightbox(src) {
+  document.getElementById("lightboxImg").src = src;
+  document.getElementById("lightboxModal").classList.add("open");
+}
+
 function onFileSelected(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -688,8 +867,21 @@ function toggleSpeechRec() {
 }
 
 function speakTurnAudio(btn) {
-  const turnBody = btn.closest('.turn-content').querySelector('.turn-body');
-  const utter = new SpeechSynthesisUtterance(turnBody.innerText);
+  const turnContent = btn.closest('.turn-content');
+  const turnBody = turnContent.querySelector('.turn-body');
+  const text = turnBody.innerText;
+
+  // Render animated waveform
+  let wave = turnContent.querySelector('.waveform-box');
+  if (!wave) {
+    wave = document.createElement("span");
+    wave.className = "waveform-box";
+    wave.innerHTML = `<span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span>`;
+    btn.appendChild(wave);
+  }
+
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.onend = () => { if (wave) wave.remove(); };
   window.speechSynthesis.speak(utter);
 }
 
@@ -732,10 +924,24 @@ async function sendUserPrompt() {
   // Render Placeholder Gemini Streaming Turn
   const modelTurnRow = document.createElement("div");
   modelTurnRow.className = "chat-turn";
+
+  let thinkingDrawerHTML = "";
+  if (selectedModelCode.includes("thinking") || selectedModelCode.includes("pro")) {
+    thinkingDrawerHTML = `
+      <div class="thinking-drawer open">
+        <div class="thinking-header" onclick="this.parentElement.classList.toggle('open')">
+          <span>🧠 Reasoning Chain & Structural Parse</span> ▾
+        </div>
+        <div class="thinking-body">Analyzing request parameters...\nEvaluating candidate representations via adaptive schema walker.</div>
+      </div>
+    `;
+  }
+
   modelTurnRow.innerHTML = `
     <div class="spark-avatar avatar-spark">✦</div>
     <div class="turn-content">
       <div class="turn-header">Gemini</div>
+      ${thinkingDrawerHTML}
       <div class="turn-body" id="currentStreamBody"><i>Thinking…</i></div>
       <div class="turn-actions">
         <button class="icon-action-btn" title="Good response">👍</button>
@@ -882,8 +1088,26 @@ async function executeTestPrompt() {
   out.innerText = JSON.stringify(data, null, 2);
 }
 
+function showLangCode(lang) {
+  document.querySelectorAll('.lang-tab').forEach(t => t.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  const box = document.getElementById("langCodeBox");
+
+  const snippets = {
+    python: `import openai\n\nclient = openai.OpenAI(base_url="http://localhost:8000/v1", api_key="YOUR_KEY")\nresponse = client.chat.completions.create(\n    model="gemini-2.5-flash",\n    messages=[{"role": "user", "content": "Hello!"}]\n)\nprint(response.choices[0].message.content)`,
+    js: `const res = await fetch("http://localhost:8000/v1/chat/completions", {\n  method: "POST",\n  headers: { "Content-Type": "application/json" },\n  body: JSON.stringify({ model: "gemini-2.5-flash", messages: [{ role: "user", content: "Hello!" }] })\n});\nconst data = await res.json();\nconsole.log(data.choices[0].message.content);`,
+    curl: `curl -X POST http://localhost:8000/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"Hello!"}]}'`,
+    go: `package main\nimport ("fmt"; "net/http"; "strings")\nfunc main() {\n  resp, _ := http.Post("http://localhost:8000/v1/chat/completions", "application/json", strings.NewReader(\`{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"Hello!"}]}\`))\n  fmt.Println(resp.Status)\n}`,
+    rust: `use reqwest;\n#[tokio::main]\nasync fn main() {\n    let client = reqwest::Client::new();\n    let res = client.post("http://localhost:8000/v1/chat/completions")\n        .json(&serde_json::json!({"model": "gemini-2.5-flash", "messages": [{"role": "user", "content": "Hello!"}]}))\n        .send().await.unwrap();\n}`,
+    php: `<?php\n$ch = curl_init("http://localhost:8000/v1/chat/completions");\ncurl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(["model" => "gemini-2.5-flash", "messages" => [["role" => "user", "content" => "Hello!"]]]));\ncurl_setopt($ch, CURLOPT_HTTPHEADER, ["Content-Type: application/json"]);\n$res = curl_exec($ch);`
+  };
+  box.innerText = snippets[lang] || snippets.python;
+  hljs.highlightElement(box);
+}
+
 /* ── Init ───────────────────────────────────────────────────────────────── */
 initChatSystem();
+showLangCode('python');
 </script>
 </body>
 </html>
