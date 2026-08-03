@@ -4825,7 +4825,7 @@
           method: "POST",
           headers: buildAuthHeaders(),
           signal: activeRequest.signal,
-          body: JSON.stringify({ model: model.code, messages: buildApiMessages(chat.turns.slice(0, -1), true), stream: true })
+          body: JSON.stringify({ model: model.code, messages: buildApiMessages(chat.turns.slice(0, -1), true), user: chat.id, stream: true })
         });
 
         if (!response.ok && [400, 415, 422].includes(response.status) && chat.turns.some(turn => turn.role === "user" && turn.image)) {
@@ -4833,7 +4833,7 @@
             method: "POST",
             headers: buildAuthHeaders(),
             signal: activeRequest.signal,
-            body: JSON.stringify({ model: model.code, messages: buildApiMessages(chat.turns.slice(0, -1), false), stream: true })
+            body: JSON.stringify({ model: model.code, messages: buildApiMessages(chat.turns.slice(0, -1), false), user: chat.id, stream: true })
           });
         }
 

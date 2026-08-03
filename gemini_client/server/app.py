@@ -173,6 +173,7 @@ class ChatCompletionRequest(BaseModel):
     messages: List[ChatMessage]
     stream: bool = False
     temperature: Optional[float] = 0.7
+    user: Optional[str] = None
 
 
 # ── OpenAI API Endpoints ─────────────────────────────────────────────────────
@@ -199,15 +200,22 @@ async def chat_completions(
     """OpenAI-compatible Chat Completions endpoint. Fully isolated per-user via engine pool."""
     engine = await get_engine()
 
-    # Derive a stable user_id from the API key so each caller gets their own memory
-    user_id = api_key[:24] if api_key != "allowed" else "anon"
+    # Derive a stable user_id from req.user or API key
+    user_id = req.user or (api_key[:24] if api_key != "allowed" else "anon")
 
-    # Format messages into combined prompt (system prompt + history)
-    prompt_parts = []
-    for msg in req.messages:
-        role_label = "User" if msg.role in ("user", "system") else "Assistant"
-        prompt_parts.append(f"{role_label}: {msg.content}")
-    formatted_prompt = "\n".join(prompt_parts)
+    user_messages = [m for m in req.messages if m.role == "user"]
+    if not user_messages:
+        raise HTTPException(status_code=400, detail="No user message found in request.")
+
+    latest_user_text = user_messages[-1].content.strip()
+
+    # If starting a brand-new conversation (1 user turn), reset previous session state for this user_id
+    if len(user_messages) == 1:
+        engine.memory_pool.set_conv_ids(user_id, "", "", "")
+        user_mem = await engine.memory_pool.get_user_memory(user_id)
+        user_mem.clear()
+
+    formatted_prompt = latest_user_text
 
     created_ts = int(time.time())
     resp_id = f"chatcmpl-{secrets.token_hex(12)}"

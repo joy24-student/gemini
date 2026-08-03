@@ -353,8 +353,18 @@ class HighScaleSupportEngine:
                 worker.response_id = resp_id
                 worker.choice_id = choice_id
 
+                # If active session conv_id exists, send message directly. If fresh session, send context_prompt.
+                send_prompt = message if conv_id else context_prompt
+
                 # 4. Query Gemini
-                response = await worker.ask(context_prompt, image=image)
+                response = await worker.ask(send_prompt, image=image)
+
+                # Fallback retry if session expired or rejected:
+                if conv_id and (not getattr(response, "text", "") or getattr(response, "error", False)):
+                    worker.conversation_id = ""
+                    worker.response_id = ""
+                    worker.choice_id = ""
+                    response = await worker.ask(context_prompt, image=image)
 
                 # 5. Save updated conversation IDs back to user's memory slot
                 self.memory_pool.set_conv_ids(
