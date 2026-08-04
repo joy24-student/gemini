@@ -272,9 +272,14 @@ class AsyncSessionPool:
         self.workers = await asyncio.gather(*tasks)
         console.log(f"[bold green]All {len(self.workers)} Session Workers Ready![/bold green]")
 
-    async def get_worker(self) -> AsyncChatbot:
-        """Round-robin worker dispatch."""
+    async def get_worker(self, user_id: Optional[str] = None) -> AsyncChatbot:
+        """User-pinned worker dispatch (hash-consistent for session affinity)."""
         async with self._pool_lock:
+            if not self.workers:
+                raise RuntimeError("Worker pool not initialized")
+            if user_id:
+                idx = abs(hash(str(user_id))) % len(self.workers)
+                return self.workers[idx]
             worker = self.workers[self._rr_index]
             self._rr_index = (self._rr_index + 1) % len(self.workers)
             return worker
@@ -379,8 +384,8 @@ class HighScaleSupportEngine:
                 user_mem = await self.memory_pool.get_user_memory(user_id)
                 context_prompt = user_mem.get_context_prompt(message)
 
-                # 2. Get a worker from pool
-                worker = await self.session_pool.get_worker()
+                # 2. Get a worker from pool pinned to this user
+                worker = await self.session_pool.get_worker(user_id=user_id)
 
                 # 3. Inject this user's conversation state into the worker (stateless handoff)
                 conv_id, resp_id, choice_id, reqid = self.memory_pool.get_conv_ids(user_id)
@@ -442,7 +447,7 @@ class HighScaleSupportEngine:
                 user_mem = await self.memory_pool.get_user_memory(user_id)
                 context_prompt = user_mem.get_context_prompt(message)
 
-                worker = await self.session_pool.get_worker()
+                worker = await self.session_pool.get_worker(user_id=user_id)
 
                 conv_id, resp_id, choice_id, reqid = self.memory_pool.get_conv_ids(user_id)
                 worker.conversation_id = conv_id

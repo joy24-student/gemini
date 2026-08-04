@@ -76,17 +76,18 @@ def load_server_config():
     env_file = Path(".env")
     if env_file.exists():
         try:
-            with open(env_file, "r", encoding="utf-8") as _ef:
+            # utf-8-sig accepts ordinary UTF-8 and removes a Windows BOM that
+            # would otherwise become part of the first environment key.
+            with open(env_file, "r", encoding="utf-8-sig") as _ef:
                 for line in _ef:
                     line = line.strip()
-                    if line.startswith("GEMINI_1PSID="):
-                        parts = line.split("GEMINI_1PSID=", 1)
-                        if len(parts) > 1 and parts[1].strip('"\' '):
-                            os.environ["GEMINI_1PSID"] = parts[1].strip('"\' ')
-                    elif line.startswith("GEMINI_1PSIDTS="):
-                        parts = line.split("GEMINI_1PSIDTS=", 1)
-                        if len(parts) > 1 and parts[1].strip('"\' '):
-                            os.environ["GEMINI_1PSIDTS"] = parts[1].strip('"\' ')
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    key = key.strip()
+                    value = value.strip('"\' ')
+                    if key in ("GEMINI_1PSID", "GEMINI_1PSIDTS") and value:
+                        os.environ[key] = value
         except Exception:
             pass
 
@@ -107,6 +108,13 @@ def load_server_config():
                 COOKIES.update(all_c)
         except Exception:
             pass
+
+    # Explicit environment configuration has the highest precedence.  The
+    # workspace file may contain additional cookies, but must not replace a
+    # freshly updated authentication pair from .env.
+    if env_psid:
+        COOKIES["__Secure-1PSID"] = env_psid
+        COOKIES["__Secure-1PSIDTS"] = env_psidts
 
     # 4. Check persistent config.json fallback
     if (not COOKIES.get("__Secure-1PSID")) and CONFIG_FILE.exists():
@@ -141,6 +149,10 @@ async def get_engine() -> HighScaleSupportEngine:
                     all_c = load_all_cookies("cookies.json")
                     if all_c:
                         COOKIES.update(all_c)
+                        env_psid = os.environ.get("GEMINI_1PSID", "").strip()
+                        if env_psid:
+                            COOKIES["__Secure-1PSID"] = env_psid
+                            COOKIES["__Secure-1PSIDTS"] = os.environ.get("GEMINI_1PSIDTS", "").strip()
                         save_server_config()
                 except Exception:
                     pass
@@ -245,9 +257,12 @@ def _proxy_image_urls_in_markdown(text: str, base_url: str = "/v1/images/proxy?u
     
     proxy_prefix = base_url if "proxy?url=" in base_url else f"{base_url.rstrip('/')}/v1/images/proxy?url="
 
+    # Clean double brackets if present: ![[Generated Image 1]](url) -> ![Generated Image 1](url)
+    text = re.sub(r'!\[\[([^\]]+)\]\]', r'![\1]', text)
+
     # 1. Convert markdown image ![Alt](https://*googleusercontent.com/*)
     def _sub_md_img(match):
-        alt = match.group(1).strip() or "Generated Image"
+        alt = match.group(1).strip().strip("[]") or "Generated Image"
         raw_url = match.group(2).strip()
         if "v1/images/proxy" in raw_url:
             return match.group(0)
@@ -264,12 +279,12 @@ def _proxy_image_urls_in_markdown(text: str, base_url: str = "/v1/images/proxy?u
 
     # 2. Convert markdown text link [Title](https://*googleusercontent.com/*) (not preceded by !)
     def _sub_md_link(match):
-        title = match.group(1).strip() or "Generated Image"
+        title = match.group(1).strip().strip("[]") or "Generated Image"
         raw_url = match.group(2).strip()
         if "v1/images/proxy" in raw_url:
             return match.group(0)
         if not _is_valid_image_url(raw_url):
-            return title
+            return ""
         proxied_url = f"{proxy_prefix}{quote(raw_url, safe='')}"
         return f"![{title}]({proxied_url})"
 
@@ -295,10 +310,7 @@ def _proxy_image_urls_in_markdown(text: str, base_url: str = "/v1/images/proxy?u
         text
     )
 
-    cleaned = text.strip()
-    if not cleaned:
-        return "*(Image generation quota limit reached for this account session. Please try again later or add extra accounts in AI Studio.)*"
-    return cleaned
+    return text
 
 
 @app.get("/v1/images/proxy")
@@ -503,7 +515,7 @@ async def chat_completions(
                 raw_u = img["url"]
                 proxied_u = f"{base_u.rstrip('/')}/v1/images/proxy?url={quote(raw_u, safe='')}"
                 if proxied_u not in final_text and raw_u not in final_text:
-                    title = img.get("title") or img.get("alt") or "Generated Image"
+                    title = (img.get("title") or img.get("alt") or "Generated Image").strip("[]")
                     final_text += f"\n\n![{title}]({proxied_u})"
 
     return {
@@ -553,9 +565,18 @@ async def generate_speech(req: SpeechRequest):
 @app.post("/api/cookies")
 async def update_cookies(data: Dict[str, str]):
     global ACTIVE_ENGINE
-    COOKIES["__Secure-1PSID"] = data.get("__Secure-1PSID", "").strip()
-    COOKIES["__Secure-1PSIDTS"] = data.get("__Secure-1PSIDTS", "").strip()
+    for k, v in data.items():
+        if k and v:
+            COOKIES[str(k).strip()] = str(v).strip()
     save_server_config()
+    
+    # Also persist to cookies.json if present
+    try:
+        from gemini_client.utils import save_cookies
+        save_cookies(COOKIES, "cookies.json")
+    except Exception:
+        pass
+        
     ACTIVE_ENGINE = None  # Force engine re-initialization
     return {"status": "success", "message": "Cookies updated successfully"}
 

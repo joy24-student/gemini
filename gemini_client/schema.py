@@ -253,7 +253,7 @@ def _extract_generated_images(body: Any, response_json: Any = None) -> List[Dict
                                 except (IndexError, TypeError):
                                     pass
                                 if url:
-                                    gen_images.append({"url": str(url), "title": f"[Generated Image {idx+1}]", "alt": alt})
+                                    gen_images.append({"url": str(url), "title": f"Generated Image {idx+1}", "alt": alt})
                         except (IndexError, TypeError):
                             continue
     except (IndexError, TypeError):
@@ -264,7 +264,7 @@ def _extract_generated_images(body: Any, response_json: Any = None) -> List[Dict
         target = response_json if response_json is not None else body
         found_urls = _collect_image_urls(target)
         for i, url in enumerate(found_urls):
-            gen_images.append({"url": _clean_url(url), "title": f"[Generated Image {i+1}]", "alt": ""})
+            gen_images.append({"url": _clean_url(url), "title": f"Generated Image {i+1}", "alt": ""})
 
     return gen_images
 

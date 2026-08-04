@@ -9,6 +9,7 @@ import os
 import random
 import re
 import string
+import uuid
 from pathlib import Path
 from datetime import datetime
 from typing import AsyncIterator, Dict, List, Union, Optional
@@ -61,10 +62,57 @@ _RE_GOOGLE_IMG  = re.compile(r'(https?://lh\d+\.googleusercontent\.com/[^\s]+)')
 _RE_ANY_URL     = re.compile(r'(https?://[^\s]+)')
 _RE_INLINE_URL  = re.compile(r'https?://[^\s]+')
 
-# -- Build label fallback (dynamically refreshed from page HTML at runtime) ---
-_BL = "boq_assistant-bard-web-server_20240625.13_p0"
+# Build labels expire quickly. Omit the parameter if discovery ever fails instead
+# of sending a stale value that Gemini rejects with HTTP 400.
+_BL = None
 
-from gemini_client.utils import upload_file, load_cookies
+_DEFAULT_METADATA = ["", "", "", None, None, None, None, None, None, ""]
+
+
+def _build_request_envelope(prompt, file_data, language, conversation_id, response_id, choice_id):
+    """Build the current Gemini web StreamGenerate request envelope."""
+    metadata = list(_DEFAULT_METADATA)
+    metadata[0:3] = [conversation_id or "", response_id or "", choice_id or ""]
+    request = [None] * 69
+    request[0] = [prompt, 0, None, file_data, None, None, 0]
+    request[1] = [language or "en"]
+    request[2] = metadata
+    request[6] = [1]
+    request[7] = 1
+    request[10] = 1
+    request[11] = 0
+    request[17] = [[0]]
+    request[18] = 0
+    request[27] = 1
+    request[30] = [4]
+    request[41] = [1]
+    request[53] = 0
+    request[61] = []
+    request[68] = 2
+    request_uuid = str(uuid.uuid4()).upper()
+    request[59] = request_uuid
+    return request, request_uuid
+
+
+def _bard_error_code(part) -> Optional[int]:
+    """Return a BardErrorInfo numeric code from a stream frame, if present."""
+    try:
+        code = part[5][2][0][1][0]
+        return code if isinstance(code, int) else None
+    except (IndexError, KeyError, TypeError):
+        return None
+
+
+def _bard_error_message(code: int) -> str:
+    if code in (1003, 1100):
+        return (
+            f"Gemini rejected the image request (BardErrorInfo {code}). "
+            "Verify that the Google session is authenticated and that image features "
+            "are available for this account and region."
+        )
+    return f"Google Gemini returned BardErrorInfo {code}."
+
+from gemini_client.utils import upload_file, load_cookies, get_upload_file_name
 from gemini_client.memory import ConversationMemory
 from gemini_client.schema import extract_response, ProtocolError, _monitor as _protocol_monitor, _walk_for_text
 from gemini_client.sync_bridge import SyncStreamBridge
@@ -261,6 +309,10 @@ class AsyncChatbot:
         "_base_params",        # Pre-built params dict (avoids rebuilding each call)
         "_model_name",         # Cached model name string
         "memory",              # ConversationMemory manager
+        "push_id",             # Session-specific content upload identifier
+        "session_id",          # Current Gemini f.sid request parameter
+        "language",            # Current Gemini UI language
+        "account_status",      # Gemini account status code (1000 = authenticated)
     ]
 
     def __init__(
@@ -268,7 +320,7 @@ class AsyncChatbot:
         secure_1psid: str,
         secure_1psidts: str,
         proxy: Optional[Union[str, Dict]] = None,
-        timeout: int = 20,
+        timeout: int = 60,
         model: Model = Model.UNSPECIFIED,
         impersonate: str = "chrome110",
         session_name: Optional[str] = None,
@@ -326,35 +378,34 @@ class AsyncChatbot:
 
         self.session = httpx.AsyncClient(
             headers=headers,
-            cookies=session_cookies,
             timeout=timeout,
             http2=True,
             follow_redirects=True,
             **client_kwargs
         )
+        # Preserve host-only cookie semantics. Some Google accounts have a
+        # gemini.google.com-scoped PSIDTS alongside a different .google.com
+        # cookie; widening it to .google.com makes a valid pair look signed out.
+        for cookie_name, cookie_value in session_cookies.items():
+            self.session.cookies.set(
+                cookie_name, cookie_value, domain="gemini.google.com", path="/"
+            )
 
         self.timeout = timeout
         self.model = model
         self.SNlM0e = None
+        self.push_id = "feeds/mcudyrk2a4khkz"
+        self.session_id = None
+        self.language = "en"
+        self.account_status = None
         self._snlm0e_lock = asyncio.Lock()  # prevents thundering-herd on token refresh
 
         # Pre-built request params (only _reqid changes per call)
-        self._base_params = {"bl": _BL, "rt": "c"}
+        self._base_params = {"rt": "c"}
 
     def _save_active_cookies(self):
-        """Persists updated session cookies back to disk/file if cookie_path is set or cookies.json exists."""
-        try:
-            from gemini_client.utils import save_cookies
-            target_path = self.cookie_path or ("cookies.json" if os.path.exists("cookies.json") else None)
-            if target_path:
-                active_cookies = dict(self.session.cookies)
-                if self.secure_1psidts:
-                    active_cookies["__Secure-1PSIDTS"] = self.secure_1psidts
-                if self.secure_1psid:
-                    active_cookies["__Secure-1PSID"] = self.secure_1psid
-                save_cookies(active_cookies, target_path)
-        except Exception as e:
-            console.log(f"[yellow]Failed auto-saving rotated cookies: {e}[/yellow]")
+        """No-op: Prevents background tasks from overwriting user's cookies.json."""
+        pass
 
     @classmethod
     async def create(
@@ -362,7 +413,7 @@ class AsyncChatbot:
         secure_1psid: str,
         secure_1psidts: str,
         proxy: Optional[Union[str, Dict]] = None,
-        timeout: int = 20,
+        timeout: int = 60,
         model: Model = Model.UNSPECIFIED,
         impersonate: str = "chrome110",
         session_name: Optional[str] = None,
@@ -381,11 +432,55 @@ class AsyncChatbot:
         )
         try:
             instance.SNlM0e = await instance.__get_snlm0e()
+            await instance._fetch_account_status()
         except Exception as e:
             console.log(f"[red]AsyncChatbot init failed: {e}[/red]", style="bold red")
             await instance.session.aclose()
             raise
         return instance
+
+    async def _fetch_account_status(self) -> Optional[int]:
+        """Fetch Gemini's authoritative authentication/account status."""
+        params = {
+            **self._base_params,
+            "rpcids": "otAQ7b",
+            "source-path": "/app",
+            "_reqid": str(self._reqid),
+        }
+        payload = [[["otAQ7b", "[]", None, "generic"]]]
+        try:
+            response = await self.session.post(
+                Endpoint.BATCH_EXEC.value,
+                params=params,
+                headers=Headers.BATCH_EXEC.value,
+                data={"at": self.SNlM0e, "f.req": _json_dumps(payload)},
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+            for line in response.text.splitlines():
+                if not line.startswith("[["):
+                    continue
+                for part in _json_loads(line):
+                    if isinstance(part, list) and len(part) > 2 and isinstance(part[2], str):
+                        body = _json_loads(part[2])
+                        if (
+                            isinstance(body, list)
+                            and len(body) > 15
+                            and isinstance(body[15], list)
+                            and (body[14] is None or isinstance(body[14], int))
+                        ):
+                            # Gemini encodes a healthy account as null; explicit
+                            # numeric values represent restricted/error states.
+                            self.account_status = 1000 if body[14] is None else body[14]
+                            if self.account_status != 1000:
+                                console.log(
+                                    f"[bold yellow]Gemini account status {self.account_status}: "
+                                    "session is not fully authenticated; image features may be unavailable.[/bold yellow]"
+                                )
+                            return self.account_status
+        except Exception as exc:
+            console.log(f"[yellow]Could not verify Gemini account status: {exc}[/yellow]")
+        return None
 
     async def save_conversation(self, file_path: str, conversation_name: str) -> None:
         # Logic remains the same
@@ -458,7 +553,7 @@ class AsyncChatbot:
         return False
 
     async def __get_snlm0e(self):
-        """Fetches the SNlM0e token. Dynamically refreshes the build label from page HTML."""
+        """Fetches the SNlM0e token without mutating user session cookies."""
         global _BL
         if not self.secure_1psid:
             raise ValueError("__Secure-1PSID cookie is required.")
@@ -466,19 +561,33 @@ class AsyncChatbot:
             resp = await self.session.get(Endpoint.INIT.value, timeout=self.timeout)
             resp.raise_for_status()
 
+            push_match = re.search(r'["\']qKIAYe["\']\s*:\s*["\'](.*?)["\']', resp.text)
+            if push_match:
+                self.push_id = push_match.group(1)
+
+            session_match = re.search(r'["\']FdrFJe["\']\s*:\s*["\'](.*?)["\']', resp.text)
+            if session_match:
+                self.session_id = session_match.group(1)
+                self._base_params["f.sid"] = self.session_id
+
+            language_match = re.search(r'["\']TuX5cc["\']\s*:\s*["\'](.*?)["\']', resp.text)
+            if language_match:
+                self.language = language_match.group(1)
+            self._base_params["hl"] = self.language
+
             if "Sign in to continue" in resp.text or "accounts.google.com" in str(resp.url):
                 raise PermissionError(
                     "Authentication failed. Cookies might be invalid or expired."
                 )
 
-            # -- Dynamically update build label (auto-adapts when Google rotates it) -
+            # -- Dynamically update build label (auto-adapts when Google rotates it) --
             bl_match = _RE_BL.search(resp.text)
             if bl_match:
                 new_bl = bl_match.group(1)
                 if new_bl != _BL:
                     console.log(f"[cyan]Build label updated: {_BL} -> {new_bl}[/cyan]")
                     _BL = new_bl
-                    self._base_params["bl"] = _BL
+                self._base_params["bl"] = new_bl
 
             # Extract session token using multi-strategy fallback
             token = None
@@ -510,12 +619,6 @@ class AsyncChatbot:
                 hint = " (rate-limited)" if code == 429 else f" (HTTP {code})"
                 raise ValueError(f"SNlM0e token not found{hint}. Check cookies.")
 
-            # Auto-save rotated PSIDTS from response cookies if present
-            if new_1psidts := resp.cookies.get("__Secure-1PSIDTS"):
-                self.secure_1psidts = new_1psidts
-                self.session.cookies.set("__Secure-1PSIDTS", new_1psidts)
-                self._save_active_cookies()
-
             return token
 
         except (Timeout, TimeoutError, httpx.TimeoutException) as e:
@@ -529,31 +632,16 @@ class AsyncChatbot:
             raise Exception(f"HTTP {status} fetching SNlM0e: {e}") from e
 
     async def __rotate_cookies(self):
-        """Safely refreshes the __Secure-1PSIDTS cookie via standard GET request to gemini.google.com/app."""
-        try:
-            resp = await self.session.get(Endpoint.INIT.value, timeout=self.timeout)
-            resp.raise_for_status()
-            if new_1psidts := resp.cookies.get("__Secure-1PSIDTS"):
-                self.secure_1psidts = new_1psidts
-                self.session.cookies.set("__Secure-1PSIDTS", new_1psidts)
-                self._save_active_cookies()
-                return new_1psidts
-        except Exception as e:
-            console.log(f"[yellow]Cookie rotation notice: {e}[/yellow]")
-            return None
-
+        """Disabled auto-rotation to prevent overwriting user cookies."""
+        return self.secure_1psidts
 
     async def _refresh_snlm0e(self) -> None:
         """
-        Re-fetch the SNlM0e token when session has expired.
+        Re-fetch the SNlM0e token when session token expires without mutating user cookies.
         Lock-protected to prevent duplicate concurrent refresh requests.
         """
         async with self._snlm0e_lock:
-            console.log("[yellow]🔄 Session token expired — refreshing SNlM0e...[/yellow]")
-            try:
-                await self.__rotate_cookies()
-            except Exception:
-                pass  # Rotation may fail — still try to fetch new token
+            console.log("[yellow]🔄 Fetching fresh SNlM0e token...[/yellow]")
             try:
                 self.SNlM0e = await self.__get_snlm0e()
                 console.log("[green]✅ SNlM0e refreshed successfully[/green]")
@@ -656,27 +744,32 @@ class AsyncChatbot:
         # Handle optional image upload
         image_upload_id = None
         if image:
+            if self.account_status == 1016:
+                yield (
+                    "[Gemini authentication error: the session cookies are expired or signed out "
+                    "(account status 1016). Refresh __Secure-1PSID and __Secure-1PSIDTS from an "
+                    "authenticated gemini.google.com session, then restart the gateway.]"
+                )
+                return
             try:
                 bot_cookies = dict(self.session.cookies) if hasattr(self, 'session') and hasattr(self.session, 'cookies') else None
-                image_upload_id = await upload_file(image, proxy=self.proxies_dict, impersonate=self.impersonate, cookies=bot_cookies)
+                image_upload_id = await upload_file(image, proxy=self.proxies_dict, impersonate=self.impersonate, cookies=bot_cookies, push_id=self.push_id)
                 console.log(f"Image uploaded successfully. ID: {image_upload_id}")
             except Exception as e:
                 console.log(f"[red]Error uploading image: {e}[/red]")
                 yield f"[Error uploading image: {e}]"
                 return
 
+        prompt_text = message if message and str(message).strip() else "Analyze this image."
         if image_upload_id:
-            message_struct = [
-                [message],
-                [[[image_upload_id, 1]]],
-                [self.conversation_id, self.response_id, self.choice_id],
-            ]
+            image_name = get_upload_file_name(image)
+            file_data = [[[image_upload_id], image_name]]
         else:
-            message_struct = [
-                [message],
-                None,
-                [self.conversation_id, self.response_id, self.choice_id],
-            ]
+            file_data = None
+        message_struct, request_uuid = _build_request_envelope(
+            prompt_text, file_data, self.language,
+            self.conversation_id, self.response_id, self.choice_id,
+        )
 
         resp = None
         for attempt in range(2):
@@ -688,6 +781,7 @@ class AsyncChatbot:
                 resp = await self.session.post(
                     Endpoint.GENERATE.value,
                     params=params,
+                    headers={"x-goog-ext-525005358-jspb": f'["{request_uuid}",1]'},
                     data=data,
                     timeout=self.timeout,
                 )
@@ -695,14 +789,6 @@ class AsyncChatbot:
                 break
             except Exception as e:
                 status = getattr(getattr(e, 'response', None), 'status_code', None)
-                if status == 400 and image_upload_id:
-                    # Fallback to standard text message_struct if Google RPC rejects image_upload_id
-                    message_struct = [
-                        [message],
-                        None,
-                        [self.conversation_id, self.response_id, self.choice_id],
-                    ]
-                    continue
                 if attempt == 0 and (status in (401, 403) or "401" in str(e) or "403" in str(e)):
                     try:
                         await self._refresh_snlm0e()
@@ -740,11 +826,12 @@ class AsyncChatbot:
                         continue
                     # Detect BardErrorInfo and extract exact error code
                     if len(part) > 5 and part[5]:
+                        error_code = _bard_error_code(part)
+                        if error_code is not None:
+                            raise RuntimeError(_bard_error_message(error_code))
                         err_str = str(part[5])
-                        if "BardErrorInfo" in err_str or "1096" in err_str or "1100" in err_str:
-                            if "1100" in err_str:
-                                raise RuntimeError(f"BardErrorInfo 1100: Google Gemini vision backend rejected the uploaded image ({err_str})")
-                            elif "1096" in err_str:
+                        if "BardErrorInfo" in err_str or "1096" in err_str or "1100" in err_str or "1003" in err_str:
+                            if "1096" in err_str:
                                 raise RuntimeError(f"BardErrorInfo 1096: Conversation state expired or invalid session ({err_str})")
                             else:
                                 raise RuntimeError(f"BardErrorInfo: Google Gemini returned error ({err_str})")
@@ -765,19 +852,22 @@ class AsyncChatbot:
                         if isinstance(body[4], list):
                             for cand in body[4]:
                                 if isinstance(cand, list) and len(cand) > 1 and cand[1]:
-                                    parts = cand[1] if isinstance(cand[1], list) else [cand[1]]
                                     cand_text_parts = []
-                                    for p in parts:
-                                        p_node = p
-                                        while isinstance(p_node, list) and p_node:
-                                            p_node = p_node[0]
+                                    for p_node in _walk_for_text(cand[1]):
                                         if isinstance(p_node, str) and p_node.strip():
                                             lowered = p_node.strip().lower()
-                                            if not p_node.startswith(("boq_assistant", "rc_", "c_", "r_", "_")) and lowered not in ("searching the web", "searching...", "thinking...", "thought") and not lowered.startswith(("searching the web", "searching google", "thinking for")):
+                                            if not p_node.startswith(("boq_assistant", "rc_", "c_", "r_", "_", "http://", "https://")) and lowered not in ("searching the web", "searching...", "thinking...", "thought") and not lowered.startswith(("searching the web", "searching google", "thinking for")):
                                                 cand_text_parts.append(p_node)
                                     full_cand_text = "".join(cand_text_parts)
                                     if len(full_cand_text) > len(best_chunk):
                                         best_chunk = full_cand_text
+                        if not best_chunk:
+                            try:
+                                parsed_fb = extract_response(body, response_json=response_json)
+                                if parsed_fb and parsed_fb.text and parsed_fb.text.strip():
+                                    best_chunk = parsed_fb.text.strip()
+                            except Exception:
+                                pass
                         if best_chunk and len(best_chunk) > len(accumulated_text):
                             delta = best_chunk[len(accumulated_text):]
                             accumulated_text = best_chunk
@@ -793,7 +883,7 @@ class AsyncChatbot:
                                     s_url = s_img["url"]
                                     if "image_generation_content" in s_url or "data_analysis_tool" in s_url:
                                         continue
-                                    s_title = s_img.get("title") or s_img.get("alt") or "Generated Image"
+                                    s_title = (s_img.get("title") or s_img.get("alt") or "Generated Image").strip("[]")
                                     img_md = f"\n\n![{s_title}]({s_url})\n\n"
                                     if s_url not in accumulated_text:
                                         accumulated_text += img_md
@@ -857,9 +947,18 @@ class AsyncChatbot:
         # Handle image upload if provided
         image_upload_id = None
         if image:
+            if self.account_status == 1016:
+                return {
+                    "content": (
+                        "Gemini authentication error: the session cookies are expired or signed out "
+                        "(account status 1016). Refresh __Secure-1PSID and __Secure-1PSIDTS from an "
+                        "authenticated gemini.google.com session, then restart the gateway."
+                    ),
+                    "error": True,
+                }
             try:
                 bot_cookies = dict(self.session.cookies) if hasattr(self, 'session') and hasattr(self.session, 'cookies') else None
-                image_upload_id = await upload_file(image, proxy=self.proxies_dict, impersonate=self.impersonate, cookies=bot_cookies)
+                image_upload_id = await upload_file(image, proxy=self.proxies_dict, impersonate=self.impersonate, cookies=bot_cookies, push_id=self.push_id)
                 console.log(f"Image uploaded successfully. ID: {image_upload_id}")
             except Exception as e:
                 console.log(f"[red]Error uploading image: {e}[/red]")
@@ -867,17 +966,15 @@ class AsyncChatbot:
 
         # Prepare message structure
         if image_upload_id:
-            message_struct = [
-                [message],
-                [[[image_upload_id, 1]]],
-                [self.conversation_id, self.response_id, self.choice_id],
-            ]
+            image_name = get_upload_file_name(image)
+            file_data = [[[image_upload_id], image_name]]
         else:
-            message_struct = [
-                [message],
-                None,
-                [self.conversation_id, self.response_id, self.choice_id],
-            ]
+            file_data = None
+        prompt_text = message if message and str(message).strip() else "Analyze this image."
+        message_struct, request_uuid = _build_request_envelope(
+            prompt_text, file_data, self.language,
+            self.conversation_id, self.response_id, self.choice_id,
+        )
 
         data = {
             "f.req": _json_dumps([None, _json_dumps(message_struct)]),
@@ -891,32 +988,13 @@ class AsyncChatbot:
                 resp = await self.session.post(
                     Endpoint.GENERATE.value,
                     params=params,
+                    headers={"x-goog-ext-525005358-jspb": f'["{request_uuid}",1]'},
                     data=data,
                     timeout=self.timeout,
                 )
                 resp.raise_for_status()
             except (HTTPError, httpx.HTTPStatusError) as e:
-                status = getattr(getattr(e, 'response', None), 'status_code', None)
-                if status == 400 and image_upload_id:
-                    # Fallback to standard text message_struct if Google RPC rejects image_upload_id
-                    fb_struct = [
-                        [message],
-                        None,
-                        [self.conversation_id, self.response_id, self.choice_id],
-                    ]
-                    fb_data = {
-                        "f.req": _json_dumps([None, _json_dumps(fb_struct)]),
-                        "at": self.SNlM0e,
-                    }
-                    resp = await self.session.post(
-                        Endpoint.GENERATE.value,
-                        params=params,
-                        data=fb_data,
-                        timeout=self.timeout,
-                    )
-                    resp.raise_for_status()
-                else:
-                    raise
+                raise
 
             # Process response
             lines = resp.text.splitlines()
@@ -926,6 +1004,8 @@ class AsyncChatbot:
             body = None
             body_index = 0
             response_json = None
+            selected_response_json = None
+            bard_error_code = None
 
             for line in lines:
                 if not line or line == ")]}'":
@@ -938,23 +1018,27 @@ class AsyncChatbot:
                     response_json = json.loads(line)
                     for part_index, part in enumerate(response_json):
                         try:
+                            error_code = _bard_error_code(part)
+                            if error_code is not None:
+                                bard_error_code = error_code
+                                break
                             if isinstance(part, list) and len(part) > 2 and part[0] == "wrb.fr":
                                 inner_json_str = part[2]
                                 if isinstance(inner_json_str, str):
                                     main_part = json.loads(inner_json_str)
                                     if isinstance(main_part, list):
                                         has_choices = len(main_part) > 4 and isinstance(main_part[4], list) and main_part[4]
-                                        has_text = any(not c.startswith(("rc_", "c_", "boq_", "_")) and len(c) > 3 for c in _walk_for_text(main_part))
-                                        if has_choices or has_text:
+                                        if has_choices:
                                             body = main_part
                                             body_index = part_index
-                                            break
+                                            selected_response_json = response_json
                         except (IndexError, TypeError, json.JSONDecodeError):
                             continue
-                    if body:
-                        break
                 except json.JSONDecodeError:
                     continue
+
+            if bard_error_code is not None:
+                return {"content": _bard_error_message(bard_error_code), "error": True}
 
             if not body:
                 return {"content": "Failed to parse response body. No valid data found.", "error": True}
@@ -963,7 +1047,7 @@ class AsyncChatbot:
                 # ── Adaptive schema walker replaces all hardcoded indices ────────
                 parsed = extract_response(
                     body,
-                    response_json=response_json,
+                    response_json=selected_response_json,
                     current_conversation_id=self.conversation_id,
                     current_response_id=self.response_id,
                     current_choice_id=self.choice_id,

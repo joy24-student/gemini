@@ -15,6 +15,7 @@ class Endpoint(Enum):
     GENERATE = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate"
     ROTATE_COOKIES = "https://accounts.google.com/RotateCookies"
     UPLOAD = "https://content-push.googleapis.com/upload"
+    BATCH_EXEC = "https://gemini.google.com/_/BardChatUi/data/batchexecute"
 
 class Headers(Enum):
     """
@@ -30,14 +31,21 @@ class Headers(Enum):
         "Host": "gemini.google.com",
         "Origin": "https://gemini.google.com",
         "Referer": "https://gemini.google.com/",
-        # User-Agent will be handled by curl_cffi impersonate
-        # "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "X-Same-Domain": "1",
     }
     ROTATE_COOKIES = {
         "Content-Type": "application/json",
     }
-    UPLOAD = {"Push-ID": "feeds/mcudyrk2a4khkz"}
+    UPLOAD = {
+        "X-Tenant-Id": "bard-storage",
+        "Origin": "https://gemini.google.com",
+        "Referer": "https://gemini.google.com/",
+    }
+    BATCH_EXEC = {
+        "x-goog-ext-525001261-jspb": "[1,null,null,null,null,null,null,null,[4]]",
+        "x-goog-ext-73010989-jspb": "[0]",
+    }
 
 class Model(Enum):
     """
@@ -62,7 +70,11 @@ class Model(Enum):
     )
     G_2_5_FLASH = (
         "gemini-2.5-flash",
-        {"x-goog-ext-525001261-jspb": '[1,null,null,null,"35609594dbe934d8"]'},
+        {
+            "x-goog-ext-525001261-jspb": '[1,null,null,null,"fbb127bbb056c959",null,null,0,[4],null,null,1]',
+            "x-goog-ext-73010989-jspb": "[0]",
+            "x-goog-ext-73010990-jspb": "[0]",
+        },
         False,
     )
     G_2_5_PRO = (

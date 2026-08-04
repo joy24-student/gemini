@@ -19,7 +19,7 @@ async def test():
 
     # 1. Upload dummy PNG image
     img_bytes = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc`\x00\x00\x00\x02\x00\x01H\xaf\xa4q\x00\x00\x00\x00IEND\xaeB`\x82'
-    clean_id = await upload_file(img_bytes)
+    clean_id = await upload_file(img_bytes, cookies=cookies)
     print("Clean Upload ID:", repr(clean_id))
 
     async with httpx.AsyncClient(headers=headers, cookies=cookies, http2=True, follow_redirects=True) as client:
