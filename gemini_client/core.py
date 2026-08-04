@@ -123,11 +123,13 @@ class Chatbot:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
 
+        self.cookie_path = cookie_path
+        cookies_dict = None
         if auto_cookie:
             extractor = CookieExtractor()
-            cookie_data = extractor.extract_cookies(save_to_disk=False)
-            self.secure_1psid = cookie_data['__Secure-1PSID']
-            self.secure_1psidts = cookie_data['__Secure-1PSIDTS']
+            cookies_dict = extractor.extract_cookies(save_to_disk=True)
+            self.secure_1psid = cookies_dict.get('__Secure-1PSID', '')
+            self.secure_1psidts = cookies_dict.get('__Secure-1PSIDTS', '')
         else:
             if not cookie_path:
                 raise ValueError(
@@ -135,6 +137,8 @@ class Chatbot:
                     "Provide a path to your cookies JSON file or set auto_cookie=True."
                 )
             self.secure_1psid, self.secure_1psidts = load_cookies(cookie_path)
+            from gemini_client.utils import load_all_cookies
+            cookies_dict = load_all_cookies(cookie_path)
 
         self.async_chatbot = self.loop.run_until_complete(
             AsyncChatbot.create(
@@ -143,6 +147,8 @@ class Chatbot:
                 session_name=session_name,
                 system_instruction=system_instruction,
                 memory=memory,
+                cookies_dict=cookies_dict,
+                cookie_path=cookie_path,
             )
         )
         self.memory = self.async_chatbot.memory
@@ -247,6 +253,7 @@ class AsyncChatbot:
         "proxies_dict",
         "secure_1psidts",
         "secure_1psid",
+        "cookie_path",
         "session",
         "timeout",
         "model",
@@ -268,6 +275,7 @@ class AsyncChatbot:
         system_instruction: Optional[str] = None,
         memory: Optional[ConversationMemory] = None,
         cookies_dict: Optional[Dict[str, str]] = None,
+        cookie_path: Optional[str] = None,
     ):
         headers = Headers.GEMINI.value.copy()
         if model != Model.UNSPECIFIED:
@@ -276,6 +284,7 @@ class AsyncChatbot:
         self._reqid = int("".join(random.choices(string.digits, k=7)))
         self.proxy = proxy
         self.impersonate = impersonate
+        self.cookie_path = cookie_path
         self._model_name = model.model_name if model != Model.UNSPECIFIED else ""
 
         # Memory initialization
@@ -307,7 +316,11 @@ class AsyncChatbot:
             client_kwargs["proxy"] = list(proxy.values())[0]
 
         # ── Speed: HTTP/2 enabled, connection keep-alive ─────────────────────
-        session_cookies = {"__Secure-1PSID": secure_1psid, "__Secure-1PSIDTS": secure_1psidts}
+        session_cookies = {}
+        if secure_1psid:
+            session_cookies["__Secure-1PSID"] = secure_1psid
+        if secure_1psidts:
+            session_cookies["__Secure-1PSIDTS"] = secure_1psidts
         if cookies_dict and isinstance(cookies_dict, dict):
             session_cookies.update(cookies_dict)
 
@@ -328,6 +341,21 @@ class AsyncChatbot:
         # Pre-built request params (only _reqid changes per call)
         self._base_params = {"bl": _BL, "rt": "c"}
 
+    def _save_active_cookies(self):
+        """Persists updated session cookies back to disk/file if cookie_path is set or cookies.json exists."""
+        try:
+            from gemini_client.utils import save_cookies
+            target_path = self.cookie_path or ("cookies.json" if os.path.exists("cookies.json") else None)
+            if target_path:
+                active_cookies = dict(self.session.cookies)
+                if self.secure_1psidts:
+                    active_cookies["__Secure-1PSIDTS"] = self.secure_1psidts
+                if self.secure_1psid:
+                    active_cookies["__Secure-1PSID"] = self.secure_1psid
+                save_cookies(active_cookies, target_path)
+        except Exception as e:
+            console.log(f"[yellow]Failed auto-saving rotated cookies: {e}[/yellow]")
+
     @classmethod
     async def create(
         cls,
@@ -341,6 +369,7 @@ class AsyncChatbot:
         system_instruction: Optional[str] = None,
         memory: Optional[ConversationMemory] = None,
         cookies_dict: Optional[Dict[str, str]] = None,
+        cookie_path: Optional[str] = None,
     ) -> "AsyncChatbot":
         """
         Factory: constructs and initialises the chatbot in one step.
@@ -348,7 +377,7 @@ class AsyncChatbot:
         instance = cls(
             secure_1psid, secure_1psidts, proxy, timeout, model, impersonate,
             session_name=session_name, system_instruction=system_instruction, memory=memory,
-            cookies_dict=cookies_dict
+            cookies_dict=cookies_dict, cookie_path=cookie_path
         )
         try:
             instance.SNlM0e = await instance.__get_snlm0e()
@@ -481,12 +510,11 @@ class AsyncChatbot:
                 hint = " (rate-limited)" if code == 429 else f" (HTTP {code})"
                 raise ValueError(f"SNlM0e token not found{hint}. Check cookies.")
 
-            # Try to refresh PSIDTS
-            if not self.secure_1psidts and "PSIDTS" not in self.session.cookies:
-                try:
-                    await self.__rotate_cookies()
-                except Exception:
-                    pass
+            # Auto-save rotated PSIDTS from response cookies if present
+            if new_1psidts := resp.cookies.get("__Secure-1PSIDTS"):
+                self.secure_1psidts = new_1psidts
+                self.session.cookies.set("__Secure-1PSIDTS", new_1psidts)
+                self._save_active_cookies()
 
             return token
 
@@ -501,23 +529,18 @@ class AsyncChatbot:
             raise Exception(f"HTTP {status} fetching SNlM0e: {e}") from e
 
     async def __rotate_cookies(self):
-        """Rotates the __Secure-1PSIDTS cookie."""
+        """Safely refreshes the __Secure-1PSIDTS cookie via standard GET request to gemini.google.com/app."""
         try:
-            response = await self.session.post(
-                Endpoint.ROTATE_COOKIES.value,
-                headers=Headers.ROTATE_COOKIES.value,
-                data='[000,"-0000000000000000000"]',
-                timeout=self.timeout
-            )
-            response.raise_for_status()
-
-            if new_1psidts := response.cookies.get("__Secure-1PSIDTS"):
+            resp = await self.session.get(Endpoint.INIT.value, timeout=self.timeout)
+            resp.raise_for_status()
+            if new_1psidts := resp.cookies.get("__Secure-1PSIDTS"):
                 self.secure_1psidts = new_1psidts
                 self.session.cookies.set("__Secure-1PSIDTS", new_1psidts)
+                self._save_active_cookies()
                 return new_1psidts
         except Exception as e:
-            console.log(f"[yellow]Cookie rotation failed: {e}[/yellow]")
-            raise
+            console.log(f"[yellow]Cookie rotation notice: {e}[/yellow]")
+            return None
 
 
     async def _refresh_snlm0e(self) -> None:
@@ -644,8 +667,8 @@ class AsyncChatbot:
 
         if image_upload_id:
             message_struct = [
-                [message, 0, None, [[[image_upload_id], "image.jpg"]]],
-                None,
+                [message],
+                [[[image_upload_id, 1]]],
                 [self.conversation_id, self.response_id, self.choice_id],
             ]
         else:
@@ -698,7 +721,6 @@ class AsyncChatbot:
         has_text = False
 
         # Parse streaming response line-by-line using fast _json_loads
-        print(f"DEBUG RESP.TEXT: {resp.text[:500]}...", flush=True)
         lines = resp.text.splitlines()
         for line in lines:
             if not line or line == ")]}'":

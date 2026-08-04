@@ -21,8 +21,9 @@ import base64
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import httpx
 from fastapi import FastAPI, HTTPException, Request, Header, Depends
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from gemini_client.core import AsyncChatbot, Chatbot, Model
@@ -60,6 +61,14 @@ from gemini_client.cookie_pool import CookiePool
 COOKIE_POOL = CookiePool.from_env()
 
 
+def save_server_config():
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump({"api_keys": API_KEYS, "cookies": COOKIES}, f, indent=2)
+    except Exception:
+        pass
+
+
 def load_server_config():
     global API_KEYS, COOKIES
 
@@ -88,14 +97,14 @@ def load_server_config():
         COOKIES["__Secure-1PSID"] = env_psid
         COOKIES["__Secure-1PSIDTS"] = env_psidts
 
-    # 3. Read from workspace cookies.json if not set by .env
+    # 3. Read from workspace cookies.json if available
     workspace_cookie_file = Path("cookies.json")
-    if (not COOKIES.get("__Secure-1PSID")) and workspace_cookie_file.exists():
+    if workspace_cookie_file.exists():
         try:
-            psid, psidts = load_cookies(str(workspace_cookie_file))
-            if psid:
-                COOKIES["__Secure-1PSID"] = psid
-                COOKIES["__Secure-1PSIDTS"] = psidts
+            from gemini_client.utils import load_all_cookies
+            all_c = load_all_cookies(str(workspace_cookie_file))
+            if all_c:
+                COOKIES.update(all_c)
         except Exception:
             pass
 
@@ -118,14 +127,6 @@ def load_server_config():
         save_server_config()
 
 
-def save_server_config():
-    try:
-        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump({"api_keys": API_KEYS, "cookies": COOKIES}, f, indent=2)
-    except Exception:
-        pass
-
-
 load_server_config()
 
 
@@ -134,19 +135,18 @@ async def get_engine() -> HighScaleSupportEngine:
     global ACTIVE_ENGINE
     async with ENGINE_LOCK:
         if ACTIVE_ENGINE is None:
-            psid = (COOKIES.get("__Secure-1PSID") or "").strip()
-            psidts = (COOKIES.get("__Secure-1PSIDTS") or "").strip()
-
-            if not psid and os.path.exists("cookies.json"):
+            if os.path.exists("cookies.json"):
                 try:
-                    p_id, p_ts = load_cookies("cookies.json")
-                    if p_id:
-                        psid, psidts = p_id, p_ts
-                        COOKIES["__Secure-1PSID"] = psid
-                        COOKIES["__Secure-1PSIDTS"] = psidts
+                    from gemini_client.utils import load_all_cookies
+                    all_c = load_all_cookies("cookies.json")
+                    if all_c:
+                        COOKIES.update(all_c)
                         save_server_config()
                 except Exception:
                     pass
+
+            psid = (COOKIES.get("__Secure-1PSID") or "").strip()
+            psidts = (COOKIES.get("__Secure-1PSIDTS") or "").strip()
 
             if not psid:
                 try:
@@ -524,6 +524,28 @@ async def chat_completions(
             "total_tokens": 0,
         },
     }
+
+
+class SpeechRequest(BaseModel):
+    model: str = "tts-1"
+    input: str
+    voice: Optional[str] = "alloy"
+    response_format: Optional[str] = "mp3"
+    speed: Optional[float] = 1.0
+
+
+@app.post("/v1/audio/speech")
+async def generate_speech(req: SpeechRequest):
+    """OpenAI-compatible Text-to-Speech (TTS) audio generation endpoint."""
+    if not req.input or not req.input.strip():
+        raise HTTPException(status_code=400, detail="Input text is required.")
+
+    from gemini_client.tts import TTSEngine
+    engine = TTSEngine()
+    audio_bytes = await engine.synthesize_bytes(req.input)
+    if not audio_bytes:
+        raise HTTPException(status_code=500, detail="Audio generation failed.")
+    return Response(content=audio_bytes, media_type="audio/mpeg")
 
 
 # ── Management API Endpoints ─────────────────────────────────────────────────

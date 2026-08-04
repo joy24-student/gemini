@@ -16,12 +16,15 @@ class CookieExtractor:
         self.cookies: Dict[str, str] = {}
         # Normalize target cookies to handle underscores/hyphens and case-insensitivity
         raw_targets = target_cookies or TARGET_COOKIES
+        def _norm(name: str) -> str:
+            return name.lower().replace("-", "_").lstrip("_")
+        self._norm = _norm
         self.filter_set: Set[str] = {
-            f"__{f.replace('_', '-')}".lower() for f in raw_targets
+            _norm(f) for f in raw_targets
         }
     def _get_project_root(self) -> Path:
-        """Dynamically finds the project root."""
-        return Path(__file__).resolve().parent
+        """Dynamically finds the current workspace root directory."""
+        return Path.cwd()
 
     def extract_cookies(
         self,
@@ -52,10 +55,10 @@ class CookieExtractor:
                 f"No cookies found for domain {domain}. Ensure you are logged into Google."
             )
 
-        # 2. Filter cookies using Case-Insensitive logic
+        # 2. Filter cookies using normalized case-insensitive logic
         self.cookies = {
             k: v for k, v in found_raw_cookies.items() 
-            if k.lower() in self.filter_set
+            if self._norm(k) in self.filter_set
         }
 
         # 3. Persistence

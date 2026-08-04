@@ -80,6 +80,75 @@ async def upload_file(
         console.log(f"[red]Network error during file upload: {e}[/red]")
         raise # Re-raise other request errors
 
+def load_all_cookies(cookie_path: str) -> Dict[str, str]:
+    """
+    Loads all cookies from a JSON file as a dictionary.
+    Supports both dict format ({"name": "val"}) and browser export list format ([{"name": "...", "value": "..."}]).
+    """
+    try:
+        with open(cookie_path, 'r', encoding='utf-8') as file:
+            data = json.load(file)
+
+        cookies = {}
+        if isinstance(data, dict):
+            for k, v in data.items():
+                cookies[str(k)] = str(v)
+        elif isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict) and "name" in item and "value" in item:
+                    cookies[str(item["name"])] = str(item["value"])
+
+        return cookies
+    except Exception:
+        return {}
+
+
+def save_cookies(cookies: Dict[str, str], cookie_path: str = "cookies.json") -> None:
+    """
+    Saves or updates cookie dictionary to a JSON file.
+    Preserves list-of-dicts format if existing file is a list, or writes dict format cleanly.
+    """
+    if not cookies or not cookie_path:
+        return
+
+    try:
+        path = Path(cookie_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        existing_data = None
+        if path.exists():
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    existing_data = json.load(f)
+            except Exception:
+                pass
+
+        if isinstance(existing_data, list):
+            # Update list format
+            updated_list = []
+            updated_names = set()
+            for item in existing_data:
+                if isinstance(item, dict) and "name" in item:
+                    name = str(item["name"])
+                    if name in cookies:
+                        item["value"] = cookies[name]
+                        updated_names.add(name)
+                    updated_list.append(item)
+            for k, v in cookies.items():
+                if k not in updated_names:
+                    updated_list.append({"name": k, "value": v})
+            out_data = updated_list
+        else:
+            # Dict format
+            out_data = dict(cookies)
+            if isinstance(existing_data, dict):
+                out_data = {**existing_data, **cookies}
+
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(out_data, f, indent=2)
+    except Exception as e:
+        console.log(f"[yellow]Failed to save updated cookies to {cookie_path}: {e}[/yellow]")
+
+
 def load_cookies(cookie_path: str) -> Tuple[str, str]:
     """
     Loads authentication cookies from a JSON file (supports both dict and browser export list formats).

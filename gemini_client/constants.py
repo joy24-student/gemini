@@ -28,9 +28,21 @@ class CookieNames(Enum):
 TARGET_COOKIES = [
     CookieNames.SECURE_1PSID.name,
     CookieNames.SECURE_1PSIDTS.name,
+    CookieNames.SECURE_1PAPISID.name,
+    CookieNames.SECURE_3PSID.name,
+    CookieNames.SECURE_3PSIDTS.name,
+    CookieNames.SID.name,
+    CookieNames.HSID.name,
+    CookieNames.SSID.name,
+    CookieNames.APISID.name,
+    CookieNames.SAPISID.name,
+    CookieNames.NID.name,
+    CookieNames.SIDCC.name,
+    CookieNames.SECURE_1PSIDCC.name,
+    CookieNames.SECURE_3PSIDCC.name,
 ]
 
-WHOLE_COOKIES = [cookie.name for cookie in CookieNames]
+WHOLE_COOKIES = [c.name for c in CookieNames]
 
 
 class URLs(Enum):

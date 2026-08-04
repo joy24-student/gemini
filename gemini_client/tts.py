@@ -133,6 +133,25 @@ class TTSEngine:
             result.duration_ms = (time.monotonic() - t0) * 1000
             return result
 
+    async def synthesize_bytes(self, text: str) -> Optional[bytes]:
+        """Synthesizes text directly to audio bytes (MP3 format)."""
+        clean = _clean_for_tts(text)
+        if not clean:
+            return None
+        voice = _detect_voice(clean, self.voice_name)
+        try:
+            import edge_tts
+            communicate = edge_tts.Communicate(clean, voice)
+            audio_chunks = []
+            async for chunk in communicate.stream():
+                if chunk.get("type") == "audio" and chunk.get("data"):
+                    audio_chunks.append(chunk["data"])
+            if audio_chunks:
+                return b"".join(audio_chunks)
+        except Exception as e:
+            console.log(f"[yellow]edge-tts stream error: {e}[/yellow]")
+        return None
+
     async def close(self) -> None:
         """No-op — kept for API symmetry."""
 

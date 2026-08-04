@@ -56,7 +56,7 @@ def main():
 
     # Auto fallback if target port is occupied
     if not is_port_available(args.host, target_port):
-        if not args.no-auto-port:
+        if not args.no_auto_port:
             fallback_port = find_available_port(args.host, target_port + 1)
             print(f"\n⚠️  [NOTICE] Port {target_port} is already in use by another process.")
             print(f"🔄 [AUTO-FALLBACK] Binding to next available port: {fallback_port}\n")
