@@ -17,7 +17,8 @@ console = Console() # Instantiate console for logging
 async def upload_file(
     file: Union[bytes, str, Path],
     proxy: Optional[Union[str, Dict[str, str]]] = None,
-    impersonate: str = "chrome110"
+    impersonate: str = "chrome110",
+    cookies: Optional[Dict[str, str]] = None,
 ) -> str:
     """
     Uploads a file to Google's Gemini server using curl_cffi and returns its identifier.
@@ -26,6 +27,7 @@ async def upload_file(
         file (bytes | str | Path): File data in bytes or path to the file to be uploaded.
         proxy (str | dict, optional): Proxy URL or dictionary for the request.
         impersonate (str, optional): Browser profile for curl_cffi to impersonate. Defaults to "chrome110".
+        cookies (dict, optional): Cookies for authentication with Google upload endpoint.
 
     Returns:
         str: Identifier of the uploaded file.
@@ -56,15 +58,19 @@ async def upload_file(
         import httpx
         # Build httpx-compatible proxy: str for simple URL, None otherwise (dict proxies go via mounts)
         httpx_proxy = proxy if isinstance(proxy, str) else (list(proxies_dict.values())[0] if proxies_dict else None)
+        # Update headers with Content-Type required by Gemini upload endpoint
+        upload_headers = Headers.UPLOAD.value.copy()
         async with httpx.AsyncClient(
             proxy=httpx_proxy,
-            headers=Headers.UPLOAD.value,
+            headers=upload_headers,
+            cookies=cookies,
             timeout=30.0,
         ) as client:
             response = await client.post(
                 url=Endpoint.UPLOAD.value,
-                files={"file": ("image.png", file_content, "image/png")},
+                files={"file": ("image.jpg", file_content, "image/jpeg")},
             )
+            response.raise_for_status()
             clean_id = response.text.replace("'", "").replace('"', "").strip()
             return clean_id
     except HTTPError as e:
@@ -90,7 +96,6 @@ def load_cookies(cookie_path: str) -> Tuple[str, str]:
 
         psid = ""
         psidts = ""
-
         if isinstance(data, dict):
             for k, v in data.items():
                 if k.upper() == "__SECURE-1PSID":
@@ -100,11 +105,11 @@ def load_cookies(cookie_path: str) -> Tuple[str, str]:
         elif isinstance(data, list):
             for item in data:
                 if isinstance(item, dict):
-                    name = str(item.get("name", "")).upper()
+                    name = str(item.get("name", ""))
                     val = str(item.get("value", ""))
-                    if name == "__SECURE-1PSID":
+                    if name.upper() == "__SECURE-1PSID":
                         psid = val
-                    elif name == "__SECURE-1PSIDTS":
+                    elif name.upper() == "__SECURE-1PSIDTS":
                         psidts = val
 
         if not psid:

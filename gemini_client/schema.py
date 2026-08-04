@@ -69,7 +69,10 @@ def _safe_str(node: Any) -> Optional[str]:
     stripped = node.strip()
     if len(stripped) < _MIN_TEXT_LEN:
         return None
-    if stripped.startswith(("boq_assistant", "rc_", "c_", "_")) or "bard-web-server" in stripped:
+    if stripped.startswith(("boq_assistant", "rc_", "c_", "r_", "_")) or "bard-web-server" in stripped:
+        return None
+    lowered = stripped.lower()
+    if lowered in ("searching the web", "searching...", "thinking...", "thought") or lowered.startswith(("searching the web", "searching google", "thinking for")):
         return None
     return stripped
 
@@ -128,11 +131,11 @@ def _collect_image_urls(node: Any, depth: int = 0, max_depth: int = 14) -> List[
     elif isinstance(node, dict):
         for v in node.values():
             urls.extend(_collect_image_urls(v, depth + 1, max_depth))
-    # Deduplicate preserving order
+    # Deduplicate preserving order & filter internal tool status strings
     seen: set = set()
     deduped = []
     for u in urls:
-        if u not in seen:
+        if u not in seen and "image_generation_content" not in u and "data_analysis_tool" not in u:
             seen.add(u)
             deduped.append(u)
     return deduped
@@ -146,16 +149,23 @@ def _clean_url(url: str) -> str:
 
 # ── Known-path fast extraction ────────────────────────────────────────────────
 def _extract_text_fast(body: Any) -> Optional[str]:
-    """Try the known structural path body[4][0][1]."""
+    """Try the known structural path body[4][0][1] and join all text parts."""
     try:
         if isinstance(body, list) and len(body) > 4 and isinstance(body[4], list) and body[4]:
             for cand_item in body[4]:
-                if isinstance(cand_item, list) and len(cand_item) > 1:
-                    text_node = cand_item[1]
-                    while isinstance(text_node, list) and text_node:
-                        text_node = text_node[0]
-                    if isinstance(text_node, str) and _safe_str(text_node):
-                        return text_node
+                if isinstance(cand_item, list) and len(cand_item) > 1 and cand_item[1]:
+                    parts = cand_item[1] if isinstance(cand_item[1], list) else [cand_item[1]]
+                    collected = []
+                    for part in parts:
+                        p_node = part
+                        while isinstance(p_node, list) and p_node:
+                            p_node = p_node[0]
+                        if isinstance(p_node, str):
+                            s = _safe_str(p_node)
+                            if s:
+                                collected.append(s)
+                    if collected:
+                        return "".join(collected)
     except (IndexError, TypeError):
         pass
     return None
@@ -164,9 +174,18 @@ def _extract_text_fast(body: Any) -> Optional[str]:
 def _extract_conversation_ids(body: Any) -> Tuple[str, str]:
     """Extract (conversation_id, response_id) from body[1]."""
     try:
-        conv_id = body[1][0] if isinstance(body[1], list) and len(body[1]) > 0 else ""
-        resp_id = body[1][1] if isinstance(body[1], list) and len(body[1]) > 1 else ""
-        return (str(conv_id) if conv_id else "", str(resp_id) if resp_id else "")
+        if isinstance(body, list) and len(body) > 1 and body[1]:
+            b1 = body[1]
+            if isinstance(b1, list):
+                if len(b1) > 1 and isinstance(b1[1], list) and len(b1[1]) > 0:
+                    c_id = str(b1[1][0]) if b1[1][0] is not None else ""
+                    r_id = str(b1[1][1]) if len(b1[1]) > 1 and b1[1][1] is not None else ""
+                    return (c_id, r_id)
+                elif len(b1) > 0 and isinstance(b1[0], str):
+                    c_id = str(b1[0]) if b1[0] is not None else ""
+                    r_id = str(b1[1]) if len(b1) > 1 and b1[1] is not None else ""
+                    return (c_id, r_id)
+        return ("", "")
     except (IndexError, TypeError):
         return ("", "")
 
@@ -240,25 +259,12 @@ def _extract_generated_images(body: Any, response_json: Any = None) -> List[Dict
     except (IndexError, TypeError):
         pass
 
-    # If fast path found nothing, walk the full response_json for Google image URLs
-    if not gen_images and response_json is not None:
-        found_urls = _collect_image_urls(response_json)
+    # If fast path found nothing, walk response_json or full body for Google image URLs
+    if not gen_images:
+        target = response_json if response_json is not None else body
+        found_urls = _collect_image_urls(target)
         for i, url in enumerate(found_urls):
             gen_images.append({"url": _clean_url(url), "title": f"[Generated Image {i+1}]", "alt": ""})
-
-    # Also try the candidate[22] alternate path
-    if not gen_images:
-        try:
-            if isinstance(body, list) and len(body) > 4 and isinstance(body[4], list) and body[4]:
-                candidate = body[4][0]
-                if isinstance(candidate, list) and len(candidate) > 22 and candidate[22]:
-                    node = candidate[22]
-                    found_urls = _collect_image_urls(node)
-                    for i, url in enumerate(found_urls):
-                        cleaned = _clean_url(url)
-                        gen_images.append({"url": cleaned, "title": f"[Generated Image {i+1}]", "alt": ""})
-        except (IndexError, TypeError):
-            pass
 
     return gen_images
 

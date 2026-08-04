@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import secrets
 import time
+import base64
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -40,7 +42,7 @@ _metrics = Metrics()
 add_health_routes(app, _metrics)
 
 # ── Persistent Storage for API Keys & Cookies ───────────────────────────────
-from gemini_client.utils import ensure_data_dir
+from gemini_client.utils import ensure_data_dir, load_cookies
 DATA_DIR = ensure_data_dir("server")
 CONFIG_FILE = DATA_DIR / "config.json"
 
@@ -60,33 +62,54 @@ COOKIE_POOL = CookiePool.from_env()
 
 def load_server_config():
     global API_KEYS, COOKIES
-    if CONFIG_FILE.exists():
+
+    # 1. Parse .env if present
+    env_file = Path(".env")
+    if env_file.exists():
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                API_KEYS = data.get("api_keys", {})
-                COOKIES = data.get("cookies", COOKIES)
+            with open(env_file, "r", encoding="utf-8") as _ef:
+                for line in _ef:
+                    line = line.strip()
+                    if line.startswith("GEMINI_1PSID="):
+                        parts = line.split("GEMINI_1PSID=", 1)
+                        if len(parts) > 1 and parts[1].strip('"\' '):
+                            os.environ["GEMINI_1PSID"] = parts[1].strip('"\' ')
+                    elif line.startswith("GEMINI_1PSIDTS="):
+                        parts = line.split("GEMINI_1PSIDTS=", 1)
+                        if len(parts) > 1 and parts[1].strip('"\' '):
+                            os.environ["GEMINI_1PSIDTS"] = parts[1].strip('"\' ')
         except Exception:
             pass
 
+    # 2. Prefer active environment variables / .env values
+    env_psid = os.environ.get("GEMINI_1PSID", "").strip()
+    env_psidts = os.environ.get("GEMINI_1PSIDTS", "").strip()
+    if env_psid:
+        COOKIES["__Secure-1PSID"] = env_psid
+        COOKIES["__Secure-1PSIDTS"] = env_psidts
+
+    # 3. Read from workspace cookies.json if not set by .env
     workspace_cookie_file = Path("cookies.json")
     if (not COOKIES.get("__Secure-1PSID")) and workspace_cookie_file.exists():
         try:
-            from gemini_client.utils import load_cookies
             psid, psidts = load_cookies(str(workspace_cookie_file))
-            COOKIES["__Secure-1PSID"] = psid
-            COOKIES["__Secure-1PSIDTS"] = psidts
+            if psid:
+                COOKIES["__Secure-1PSID"] = psid
+                COOKIES["__Secure-1PSIDTS"] = psidts
         except Exception:
             pass
 
-    # Read from environment variables if cookies are not set
-    if not COOKIES.get("__Secure-1PSID"):
-        import os
-        env_psid = os.environ.get("GEMINI_1PSID", "")
-        env_psidts = os.environ.get("GEMINI_1PSIDTS", "")
-        if env_psid:
-            COOKIES["__Secure-1PSID"] = env_psid
-            COOKIES["__Secure-1PSIDTS"] = env_psidts
+    # 4. Check persistent config.json fallback
+    if (not COOKIES.get("__Secure-1PSID")) and CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                API_KEYS = data.get("api_keys", API_KEYS)
+                c = data.get("cookies", {})
+                if c.get("__Secure-1PSID"):
+                    COOKIES = c
+        except Exception:
+            pass
 
     # Ensure default API key exists if none
     if not API_KEYS:
@@ -114,6 +137,17 @@ async def get_engine() -> HighScaleSupportEngine:
             psid = (COOKIES.get("__Secure-1PSID") or "").strip()
             psidts = (COOKIES.get("__Secure-1PSIDTS") or "").strip()
 
+            if not psid and os.path.exists("cookies.json"):
+                try:
+                    p_id, p_ts = load_cookies("cookies.json")
+                    if p_id:
+                        psid, psidts = p_id, p_ts
+                        COOKIES["__Secure-1PSID"] = psid
+                        COOKIES["__Secure-1PSIDTS"] = psidts
+                        save_server_config()
+                except Exception:
+                    pass
+
             if not psid:
                 try:
                     extractor = CookieExtractor()
@@ -121,8 +155,7 @@ async def get_engine() -> HighScaleSupportEngine:
                     psid = (extracted.get("__Secure-1PSID") or "").strip()
                     psidts = (extracted.get("__Secure-1PSIDTS") or "").strip()
                     if psid:
-                        COOKIES["__Secure-1PSID"] = psid
-                        COOKIES["__Secure-1PSIDTS"] = psidts
+                        COOKIES.update(extracted)
                         save_server_config()
                 except Exception:
                     pass
@@ -136,12 +169,12 @@ async def get_engine() -> HighScaleSupportEngine:
             ACTIVE_ENGINE = HighScaleSupportEngine(
                 max_concurrent=200,
                 worker_pool_size=5,
+                secure_1psid=psid,
+                secure_1psidts=psidts or "",
                 auto_cookie=False,
                 model=Model.G_2_5_FLASH,
             )
-            # Manually set cookies from config
-            ACTIVE_ENGINE.session_pool.secure_1psid = psid
-            ACTIVE_ENGINE.session_pool.secure_1psidts = psidts or ""
+            ACTIVE_ENGINE.session_pool.all_cookies = dict(COOKIES)
             await ACTIVE_ENGINE.initialize()
         return ACTIVE_ENGINE
 
@@ -165,7 +198,7 @@ async def verify_api_key(authorization: Optional[str] = Header(None)) -> str:
 
 class ChatMessage(BaseModel):
     role: str
-    content: str
+    content: Union[str, List[Dict[str, Any]]]
 
 
 class ChatCompletionRequest(BaseModel):
@@ -191,6 +224,165 @@ async def list_models():
     }
 
 
+import re
+from urllib.parse import quote, unquote
+
+def _is_valid_image_url(url: str) -> bool:
+    if not url or not isinstance(url, str):
+        return False
+    # Exclude internal status strings and tool metadata
+    if "image_generation_content" in url or "data_analysis_tool" in url or "creating_your_image" in url:
+        return False
+    # Check if it has a valid image CDN path or file extension
+    valid_domain = any(dom in url for dom in ["lh3.googleusercontent.com", "lh4.googleusercontent.com", "lh5.googleusercontent.com", "lh6.googleusercontent.com", "content-push.googleapis.com"])
+    has_img_ext = any(url.lower().rstrip('?#').endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp", ".gif"])
+    return valid_domain or has_img_ext or "/bard/" in url or "/gg/" in url
+
+
+def _proxy_image_urls_in_markdown(text: str, base_url: str = "/v1/images/proxy?url=") -> str:
+    if not text:
+        return ""
+    
+    proxy_prefix = base_url if "proxy?url=" in base_url else f"{base_url.rstrip('/')}/v1/images/proxy?url="
+
+    # 1. Convert markdown image ![Alt](https://*googleusercontent.com/*)
+    def _sub_md_img(match):
+        alt = match.group(1).strip() or "Generated Image"
+        raw_url = match.group(2).strip()
+        if "v1/images/proxy" in raw_url:
+            return match.group(0)
+        if not _is_valid_image_url(raw_url):
+            return ""
+        proxied_url = f"{proxy_prefix}{quote(raw_url, safe='')}"
+        return f"![{alt}]({proxied_url})"
+
+    text = re.sub(
+        r'!\[([^\]]*)\]\((https?://[^\s\)]*googleusercontent\.com[^\s\)]*)\)',
+        _sub_md_img,
+        text
+    )
+
+    # 2. Convert markdown text link [Title](https://*googleusercontent.com/*) (not preceded by !)
+    def _sub_md_link(match):
+        title = match.group(1).strip() or "Generated Image"
+        raw_url = match.group(2).strip()
+        if "v1/images/proxy" in raw_url:
+            return match.group(0)
+        if not _is_valid_image_url(raw_url):
+            return title
+        proxied_url = f"{proxy_prefix}{quote(raw_url, safe='')}"
+        return f"![{title}]({proxied_url})"
+
+    text = re.sub(
+        r'(?<!\!)\[([^\]]*)\]\((https?://[^\s\)]*googleusercontent\.com[^\s\)]*)\)',
+        _sub_md_link,
+        text
+    )
+
+    # 3. Convert bare Google image URLs or strip invalid status URLs
+    def _sub_bare_url(match):
+        raw_url = match.group(0).strip()
+        if "v1/images/proxy" in raw_url:
+            return raw_url
+        if not _is_valid_image_url(raw_url):
+            return ""
+        proxied_url = f"{proxy_prefix}{quote(raw_url, safe='')}"
+        return f"\n\n![Generated Image]({proxied_url})"
+
+    text = re.sub(
+        r'(?<![\(\]\="])(https?://[^\s\)\"\']*googleusercontent\.com[^\s\)\"\']*)',
+        _sub_bare_url,
+        text
+    )
+
+    cleaned = text.strip()
+    if not cleaned:
+        return "*(Image generation quota limit reached for this account session. Please try again later or add extra accounts in AI Studio.)*"
+    return cleaned
+
+
+@app.get("/v1/images/proxy")
+async def proxy_image(url: str):
+    """
+    Proxy Google image URLs (lh3.googleusercontent.com, googleusercontent.com)
+    with required Referer and session headers so generated images display directly
+    inside the chat window without 404 errors.
+    """
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing url parameter.")
+    
+    clean_url = unquote(url).strip()
+    if not _is_valid_image_url(clean_url):
+        raise HTTPException(status_code=404, detail="Invalid image URL.")
+
+    # Force HTTPS scheme
+    if clean_url.startswith("http://"):
+        clean_url = "https://" + clean_url[7:]
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://gemini.google.com/",
+        "Origin": "https://gemini.google.com",
+        "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+    }
+    
+    cookies = {}
+    if COOKIES.get("__Secure-1PSID"):
+        cookies["__Secure-1PSID"] = COOKIES["__Secure-1PSID"]
+    if COOKIES.get("__Secure-1PSIDTS"):
+        cookies["__Secure-1PSIDTS"] = COOKIES["__Secure-1PSIDTS"]
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True, headers=headers, cookies=cookies, http2=True) as client:
+            resp = await client.get(clean_url)
+            if resp.status_code == 200:
+                content_type = resp.headers.get("content-type", "image/jpeg")
+                return Response(content=resp.content, media_type=content_type)
+            else:
+                raise HTTPException(status_code=resp.status_code, detail=f"Failed to fetch image from Google: HTTP {resp.status_code}")
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Proxy error: {str(e)}")
+
+
+async def _extract_image_bytes(item: Any) -> Optional[bytes]:
+    if not isinstance(item, dict):
+        return None
+    url = None
+    img_url_obj = item.get("image_url")
+    if isinstance(img_url_obj, dict):
+        url = img_url_obj.get("url")
+    elif isinstance(img_url_obj, str):
+        url = img_url_obj
+    if not url:
+        url = item.get("url") or item.get("image") or item.get("data")
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()
+    if url.startswith("data:image"):
+        try:
+            parts = url.split(",", 1)
+            base64_data = parts[1] if len(parts) > 1 else parts[0]
+            return base64.b64decode(base64_data)
+        except Exception:
+            return None
+    if url.startswith("http://") or url.startswith("https://"):
+        try:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    return resp.content
+        except Exception as e:
+            print(f"Failed to download image URL {url}: {e}")
+            return None
+    if len(url) > 100:
+        try:
+            return base64.b64decode(url)
+        except Exception:
+            pass
+    return None
+
 @app.post("/v1/chat/completions")
 async def chat_completions(
     request: Request,
@@ -207,7 +399,39 @@ async def chat_completions(
     if not user_messages:
         raise HTTPException(status_code=400, detail="No user message found in request.")
 
-    latest_user_text = user_messages[-1].content.strip()
+    latest_msg = user_messages[-1].content
+    image_bytes = None
+    formatted_prompt = ""
+
+    if isinstance(latest_msg, list):
+        for item in latest_msg:
+            if isinstance(item, dict):
+                if item.get("type") == "text":
+                    formatted_prompt += item.get("text", "")
+                elif item.get("type") in ("image_url", "image", "input_image"):
+                    if not image_bytes:
+                        image_bytes = await _extract_image_bytes(item)
+                        print(f"Extracted image bytes from current message: {len(image_bytes) if image_bytes else 'None'}")
+    else:
+        formatted_prompt = str(latest_msg).strip()
+
+    if not image_bytes:
+        for m in reversed(user_messages):
+            if isinstance(m.content, list):
+                for item in m.content:
+                    if isinstance(item, dict):
+                        extracted = await _extract_image_bytes(item)
+                        if extracted:
+                            image_bytes = extracted
+                            print(f"Extracted image bytes from previous message: {len(image_bytes)}")
+                            break
+            if image_bytes:
+                break
+    
+    if not image_bytes:
+        print(f"WARNING: No image bytes extracted! Payload latest_msg: {latest_msg}")
+    else:
+        print(f"SUCCESS: Passing {len(image_bytes)} bytes of image to engine.")
 
     # If starting a brand-new conversation (1 user turn), reset previous session state for this user_id
     if len(user_messages) == 1:
@@ -215,55 +439,38 @@ async def chat_completions(
         user_mem = await engine.memory_pool.get_user_memory(user_id)
         user_mem.clear()
 
-    formatted_prompt = latest_user_text
-
     created_ts = int(time.time())
     resp_id = f"chatcmpl-{secrets.token_hex(12)}"
 
-    # Streaming Response (SSE) — engine processes, then stream from cached text
+    # Streaming Response (SSE) — real-time token yielding
     if req.stream:
+        base_u = str(request.base_url)
         async def event_generator():
             try:
-                result = await engine.process_user_query(user_id=user_id, message=formatted_prompt)
-                resp = result.get("response")
-                if resp and getattr(resp, "error", False):
-                    err_msg = getattr(resp, "error_message", "Gateway failed to generate response.")
-                    sse_err = {
-                        "id": resp_id,
-                        "object": "chat.completion.chunk",
-                        "created": created_ts,
-                        "model": req.model,
-                        "choices": [{"index": 0, "delta": {"content": f"Gateway Error: {err_msg}"}, "finish_reason": "error"}],
-                    }
-                    yield f"data: {json.dumps(sse_err)}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-
-                text = result.get("text", "")
-                if not text:
-                    err_msg = result.get("error") or "Gateway returned an empty response. Please verify your session cookies in AI Studio."
-                    sse_err = {
-                        "id": resp_id,
-                        "object": "chat.completion.chunk",
-                        "created": created_ts,
-                        "model": req.model,
-                        "choices": [{"index": 0, "delta": {"content": err_msg}, "finish_reason": "stop"}],
-                    }
-                    yield f"data: {json.dumps(sse_err)}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
-
-                chunk_size = 20
-                for i in range(0, len(text), chunk_size):
-                    chunk = text[i:i + chunk_size]
+                has_yielded = False
+                async for chunk in engine.process_user_query_stream(user_id=user_id, message=formatted_prompt, image=image_bytes):
+                    has_yielded = True
+                    transformed_chunk = _proxy_image_urls_in_markdown(chunk, base_u)
                     sse_data = {
                         "id": resp_id,
                         "object": "chat.completion.chunk",
                         "created": created_ts,
                         "model": req.model,
-                        "choices": [{"index": 0, "delta": {"content": chunk}, "finish_reason": None}],
+                        "choices": [{"index": 0, "delta": {"content": transformed_chunk}, "finish_reason": None}],
                     }
                     yield f"data: {json.dumps(sse_data)}\n\n"
+                
+                if not has_yielded:
+                    err_msg = "Gateway returned an empty stream. Please verify your session cookies in AI Studio."
+                    sse_err = {
+                        "id": resp_id,
+                        "object": "chat.completion.chunk",
+                        "created": created_ts,
+                        "model": req.model,
+                        "choices": [{"index": 0, "delta": {"content": err_msg}, "finish_reason": "error"}],
+                    }
+                    yield f"data: {json.dumps(sse_err)}\n\n"
+
                 yield f"data: {json.dumps({'id': resp_id, 'object': 'chat.completion.chunk', 'created': created_ts, 'model': req.model, 'choices': [{'index': 0, 'delta': {}, 'finish_reason': 'stop'}]})}\n\n"
                 yield "data: [DONE]\n\n"
             except Exception as e:
@@ -279,10 +486,25 @@ async def chat_completions(
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     # Non-streaming Response
-    result = await engine.process_user_query(user_id=user_id, message=formatted_prompt)
+    result = await engine.process_user_query(user_id=user_id, message=formatted_prompt, image=image_bytes)
     response = result["response"]
     if getattr(response, "error", False):
         raise HTTPException(status_code=500, detail=getattr(response, "error_message", "Unknown error"))
+
+    final_text = result["text"] or ""
+    base_u = str(request.base_url)
+    final_text = _proxy_image_urls_in_markdown(final_text, base_u)
+
+    # Append any parsed image objects from response as embedded markdown image tags
+    if response:
+        parsed_imgs = (getattr(response, "images", []) or []) + (getattr(response, "generated_images", []) or [])
+        for img in parsed_imgs:
+            if isinstance(img, dict) and img.get("url") and _is_valid_image_url(img["url"]):
+                raw_u = img["url"]
+                proxied_u = f"{base_u.rstrip('/')}/v1/images/proxy?url={quote(raw_u, safe='')}"
+                if proxied_u not in final_text and raw_u not in final_text:
+                    title = img.get("title") or img.get("alt") or "Generated Image"
+                    final_text += f"\n\n![{title}]({proxied_u})"
 
     return {
         "id": resp_id,
@@ -292,7 +514,7 @@ async def chat_completions(
         "choices": [
             {
                 "index": 0,
-                "message": {"role": "assistant", "content": result["text"]},
+                "message": {"role": "assistant", "content": final_text},
                 "finish_reason": "stop",
             }
         ],

@@ -21,7 +21,7 @@ import os
 import time
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 from rich.console import Console
 
@@ -84,9 +84,9 @@ class HighScaleMemoryPool:
         # LRU RAM Cache: user_id -> ConversationMemory
         self._ram_cache: OrderedDict[str, ConversationMemory] = OrderedDict()
         self._user_locks: Dict[str, asyncio.Lock] = {}
-        # Per-user Gemini session IDs (conversation_id, response_id, choice_id)
+        # Per-user Gemini session IDs (conversation_id, response_id, choice_id, reqid)
         # These are stored here so workers remain stateless between users
-        self._conv_ids: Dict[str, Tuple[str, str, str]] = {}
+        self._conv_ids: Dict[str, Tuple[str, str, str, int]] = {}
 
         # Sharded locks: 16 buckets instead of one global lock.
         # Users land in different buckets so only ~1/16 of users contend.
@@ -138,13 +138,13 @@ class HighScaleMemoryPool:
 
         return self._ram_cache[user_id]
 
-    def get_conv_ids(self, user_id: str) -> Tuple[str, str, str]:
-        """Return (conversation_id, response_id, choice_id) for this user."""
-        return self._conv_ids.get(user_id, ("", "", ""))
+    def get_conv_ids(self, user_id: str) -> Tuple[str, str, str, int]:
+        """Return (conversation_id, response_id, choice_id, reqid) for this user."""
+        return self._conv_ids.get(user_id, ("", "", "", 0))
 
-    def set_conv_ids(self, user_id: str, conv_id: str, resp_id: str, choice_id: str) -> None:
+    def set_conv_ids(self, user_id: str, conv_id: str, resp_id: str, choice_id: str, reqid: int = 0) -> None:
         """Persist updated Gemini session IDs for this user."""
-        self._conv_ids[user_id] = (conv_id, resp_id, choice_id)
+        self._conv_ids[user_id] = (conv_id, resp_id, choice_id, reqid)
 
     async def record_turn(self, user_id: str, user_text: str, model_text: str):
         """Record user and model turn in memory and schedule async background save."""
@@ -218,15 +218,27 @@ class AsyncSessionPool:
         self.model = model
         self.cookie_pool = cookie_pool
 
+        self.all_cookies = {}
         if cookie_pool is None:
             # Single-account fallback
             if cookie_path and os.path.exists(cookie_path):
                 self.secure_1psid, self.secure_1psidts = load_cookies(cookie_path)
+                try:
+                    import json
+                    with open(cookie_path, 'r', encoding='utf-8') as _f:
+                        _d = json.load(_f)
+                        if isinstance(_d, dict):
+                            self.all_cookies = {str(k): str(v) for k, v in _d.items()}
+                        elif isinstance(_d, list):
+                            self.all_cookies = {str(i.get("name", "")): str(i.get("value", "")) for i in _d if isinstance(i, dict)}
+                except Exception:
+                    self.all_cookies = {"__Secure-1PSID": self.secure_1psid, "__Secure-1PSIDTS": self.secure_1psidts}
             elif auto_cookie and (not secure_1psid or not secure_1psidts):
                 extractor = CookieExtractor()
                 cookies = extractor.extract_cookies(save_to_disk=False)
                 self.secure_1psid = cookies['__Secure-1PSID']
                 self.secure_1psidts = cookies['__Secure-1PSIDTS']
+                self.all_cookies = cookies
             else:
                 self.secure_1psid = secure_1psid or ""
                 self.secure_1psidts = secure_1psidts or ""
@@ -254,6 +266,7 @@ class AsyncSessionPool:
                     secure_1psid=psid,
                     secure_1psidts=psidts,
                     model=self.model,
+                    cookies_dict=self.all_cookies,
                 )
             )
         self.workers = await asyncio.gather(*tasks)
@@ -302,23 +315,45 @@ class HighScaleSupportEngine:
         self,
         max_concurrent: int = 500,
         worker_pool_size: int = 10,
+        secure_1psid: Optional[str] = None,
+        secure_1psidts: Optional[str] = None,
         cookie_path: Optional[str] = None,
         auto_cookie: bool = True,
         model: Model = Model.G_2_5_FLASH,
         system_instruction: Optional[str] = None,
+        cookie_pool: Optional[CookiePool] = None,
     ):
         self.max_concurrent = max_concurrent
         self.semaphore = asyncio.Semaphore(max_concurrent)
         self.session_pool = AsyncSessionPool(
             pool_size=worker_pool_size,
+            secure_1psid=secure_1psid,
+            secure_1psidts=secure_1psidts,
             cookie_path=cookie_path,
             auto_cookie=auto_cookie,
             model=model,
+            cookie_pool=cookie_pool,
         )
         self.memory_pool = HighScaleMemoryPool(
             max_ram_users=300,
             default_system_instruction=system_instruction,
         )
+
+    @property
+    def secure_1psid(self) -> str:
+        return self.session_pool.secure_1psid
+
+    @secure_1psid.setter
+    def secure_1psid(self, val: str):
+        self.session_pool.secure_1psid = val
+
+    @property
+    def secure_1psidts(self) -> str:
+        return self.session_pool.secure_1psidts
+
+    @secure_1psidts.setter
+    def secure_1psidts(self, val: str):
+        self.session_pool.secure_1psidts = val
 
     async def initialize(self):
         """Start the worker pool."""
@@ -348,10 +383,12 @@ class HighScaleSupportEngine:
                 worker = await self.session_pool.get_worker()
 
                 # 3. Inject this user's conversation state into the worker (stateless handoff)
-                conv_id, resp_id, choice_id = self.memory_pool.get_conv_ids(user_id)
+                conv_id, resp_id, choice_id, reqid = self.memory_pool.get_conv_ids(user_id)
                 worker.conversation_id = conv_id
                 worker.response_id = resp_id
                 worker.choice_id = choice_id
+                if reqid != 0:
+                    worker._reqid = reqid
 
                 # If active session conv_id exists, send message directly. If fresh session, send context_prompt.
                 send_prompt = message if conv_id else context_prompt
@@ -360,10 +397,14 @@ class HighScaleSupportEngine:
                 response = await worker.ask(send_prompt, image=image)
 
                 # Fallback retry if session expired or rejected:
-                if conv_id and (not getattr(response, "text", "") or getattr(response, "error", False)):
+                if (conv_id or getattr(response, "error", False)) and (not getattr(response, "text", "") or getattr(response, "error", False)):
                     worker.conversation_id = ""
                     worker.response_id = ""
                     worker.choice_id = ""
+                    try:
+                        await worker._refresh_snlm0e()
+                    except Exception:
+                        pass
                     response = await worker.ask(context_prompt, image=image)
 
                 # 5. Save updated conversation IDs back to user's memory slot
@@ -372,6 +413,7 @@ class HighScaleSupportEngine:
                     worker.conversation_id,
                     worker.response_id,
                     worker.choice_id,
+                    worker._reqid,
                 )
 
                 # 6. Extract model text & record turn
@@ -384,6 +426,71 @@ class HighScaleSupportEngine:
                     "text": model_text,
                     "turns_in_memory": len(user_mem.messages),
                 }
+
+    async def process_user_query_stream(
+        self,
+        user_id: str,
+        message: str,
+        image: Optional[Any] = None,
+    ) -> AsyncIterator[str]:
+        """
+        Process a customer query with real-time SSE streaming.
+        """
+        async with self.semaphore:
+            user_lock = await self.memory_pool.get_user_lock(user_id)
+            async with user_lock:
+                user_mem = await self.memory_pool.get_user_memory(user_id)
+                context_prompt = user_mem.get_context_prompt(message)
+
+                worker = await self.session_pool.get_worker()
+
+                conv_id, resp_id, choice_id, reqid = self.memory_pool.get_conv_ids(user_id)
+                worker.conversation_id = conv_id
+                worker.response_id = resp_id
+                worker.choice_id = choice_id
+                if reqid != 0:
+                    worker._reqid = reqid
+
+                send_prompt = message if conv_id else context_prompt
+                
+                full_text = ""
+                error_occurred = False
+                try:
+                    async for chunk in worker.ask_stream(send_prompt, image=image):
+                        full_text += chunk
+                        yield chunk
+                except Exception as e:
+                    error_occurred = True
+                    # If active session expired (or 1096 session error occurred), refresh worker & retry once with full context prompt
+                    if (conv_id or "1096" in str(e) or "expired" in str(e) or "BardErrorInfo" in str(e)) and not full_text:
+                        worker.conversation_id = ""
+                        worker.response_id = ""
+                        worker.choice_id = ""
+                        try:
+                            await worker._refresh_snlm0e()
+                        except Exception:
+                            pass
+                        try:
+                            async for chunk in worker.ask_stream(context_prompt, image=image):
+                                full_text += chunk
+                                yield chunk
+                        except Exception as inner_e:
+                            yield f"\n[Gateway Stream Error: {inner_e}]"
+                    else:
+                        yield f"\n[Gateway Stream Error: {e}]"
+
+                # Save updated conversation state back to user memory slot
+                self.memory_pool.set_conv_ids(
+                    user_id,
+                    worker.conversation_id,
+                    worker.response_id,
+                    worker.choice_id,
+                    worker._reqid,
+                )
+
+                # Record full text output to memory history
+                if full_text:
+                    await self.memory_pool.record_turn(user_id, message, full_text)
 
     async def close(self):
         """Shutdown engine and session pool."""

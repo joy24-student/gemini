@@ -30,6 +30,7 @@ from gemini_client.cookie_manager import CookieExtractor
 from gemini_client.response import (
     GenerateContentResponse, build_response, build_error_response
 )
+from gemini_client.schema import extract_response
 
 # High-performance async HTTP client (httpx HTTP/2 support)
 import httpx
@@ -266,6 +267,7 @@ class AsyncChatbot:
         session_name: Optional[str] = None,
         system_instruction: Optional[str] = None,
         memory: Optional[ConversationMemory] = None,
+        cookies_dict: Optional[Dict[str, str]] = None,
     ):
         headers = Headers.GEMINI.value.copy()
         if model != Model.UNSPECIFIED:
@@ -305,9 +307,13 @@ class AsyncChatbot:
             client_kwargs["proxy"] = list(proxy.values())[0]
 
         # ── Speed: HTTP/2 enabled, connection keep-alive ─────────────────────
+        session_cookies = {"__Secure-1PSID": secure_1psid, "__Secure-1PSIDTS": secure_1psidts}
+        if cookies_dict and isinstance(cookies_dict, dict):
+            session_cookies.update(cookies_dict)
+
         self.session = httpx.AsyncClient(
             headers=headers,
-            cookies={"__Secure-1PSID": secure_1psid, "__Secure-1PSIDTS": secure_1psidts},
+            cookies=session_cookies,
             timeout=timeout,
             http2=True,
             follow_redirects=True,
@@ -334,13 +340,15 @@ class AsyncChatbot:
         session_name: Optional[str] = None,
         system_instruction: Optional[str] = None,
         memory: Optional[ConversationMemory] = None,
+        cookies_dict: Optional[Dict[str, str]] = None,
     ) -> "AsyncChatbot":
         """
         Factory: constructs and initialises the chatbot in one step.
         """
         instance = cls(
             secure_1psid, secure_1psidts, proxy, timeout, model, impersonate,
-            session_name=session_name, system_instruction=system_instruction, memory=memory
+            session_name=session_name, system_instruction=system_instruction, memory=memory,
+            cookies_dict=cookies_dict
         )
         try:
             instance.SNlM0e = await instance.__get_snlm0e()
@@ -626,7 +634,9 @@ class AsyncChatbot:
         image_upload_id = None
         if image:
             try:
-                image_upload_id = await upload_file(image, proxy=self.proxies_dict, impersonate=self.impersonate)
+                bot_cookies = dict(self.session.cookies) if hasattr(self, 'session') and hasattr(self.session, 'cookies') else None
+                image_upload_id = await upload_file(image, proxy=self.proxies_dict, impersonate=self.impersonate, cookies=bot_cookies)
+                console.log(f"Image uploaded successfully. ID: {image_upload_id}")
             except Exception as e:
                 console.log(f"[red]Error uploading image: {e}[/red]")
                 yield f"[Error uploading image: {e}]"
@@ -634,8 +644,8 @@ class AsyncChatbot:
 
         if image_upload_id:
             message_struct = [
-                [message],
-                [[[image_upload_id, 1]]],
+                [message, 0, None, [[[image_upload_id], "image.jpg"]]],
+                None,
                 [self.conversation_id, self.response_id, self.choice_id],
             ]
         else:
@@ -684,7 +694,11 @@ class AsyncChatbot:
         final_choice_id = self.choice_id
         accumulated_text = ""
 
+        has_wrb = False
+        has_text = False
+
         # Parse streaming response line-by-line using fast _json_loads
+        print(f"DEBUG RESP.TEXT: {resp.text[:500]}...", flush=True)
         lines = resp.text.splitlines()
         for line in lines:
             if not line or line == ")]}'":
@@ -696,8 +710,23 @@ class AsyncChatbot:
             try:
                 response_json = _json_loads(line)
                 for part in response_json:
+                    if isinstance(part, list) and part and part[0] == "error":
+                        yield f"\n[Google API Error: {part}]\n"
+                        has_text = True
+                        continue
                     if not (isinstance(part, list) and len(part) > 2 and part[0] == "wrb.fr"):
                         continue
+                    # Detect BardErrorInfo and extract exact error code
+                    if len(part) > 5 and part[5]:
+                        err_str = str(part[5])
+                        if "BardErrorInfo" in err_str or "1096" in err_str or "1100" in err_str:
+                            if "1100" in err_str:
+                                raise RuntimeError(f"BardErrorInfo 1100: Google Gemini vision backend rejected the uploaded image ({err_str})")
+                            elif "1096" in err_str:
+                                raise RuntimeError(f"BardErrorInfo 1096: Conversation state expired or invalid session ({err_str})")
+                            else:
+                                raise RuntimeError(f"BardErrorInfo: Google Gemini returned error ({err_str})")
+                    has_wrb = True
                     inner_str = part[2]
                     if not isinstance(inner_str, str):
                         continue
@@ -708,33 +737,79 @@ class AsyncChatbot:
                     if not body or not (len(body) > 4 and body[4]):
                         continue
 
-                    # Extract text chunk
+                    # Extract text chunk across candidates in body[4] (handles web search & grounding)
                     try:
-                        chunk = body[4][0][1] if len(body[4][0]) > 1 else ""
-                        if chunk and isinstance(chunk, list):
-                            chunk = chunk[0] if chunk else ""
-                        if chunk and isinstance(chunk, str):
-                            delta = chunk[len(accumulated_text):]
-                            if delta:
-                                accumulated_text = chunk
-                                yield delta
+                        best_chunk = ""
+                        if isinstance(body[4], list):
+                            for cand in body[4]:
+                                if isinstance(cand, list) and len(cand) > 1 and cand[1]:
+                                    parts = cand[1] if isinstance(cand[1], list) else [cand[1]]
+                                    cand_text_parts = []
+                                    for p in parts:
+                                        p_node = p
+                                        while isinstance(p_node, list) and p_node:
+                                            p_node = p_node[0]
+                                        if isinstance(p_node, str) and p_node.strip():
+                                            lowered = p_node.strip().lower()
+                                            if not p_node.startswith(("boq_assistant", "rc_", "c_", "r_", "_")) and lowered not in ("searching the web", "searching...", "thinking...", "thought") and not lowered.startswith(("searching the web", "searching google", "thinking for")):
+                                                cand_text_parts.append(p_node)
+                                    full_cand_text = "".join(cand_text_parts)
+                                    if len(full_cand_text) > len(best_chunk):
+                                        best_chunk = full_cand_text
+                        if best_chunk and len(best_chunk) > len(accumulated_text):
+                            delta = best_chunk[len(accumulated_text):]
+                            accumulated_text = best_chunk
+                            has_text = True
+                            yield delta
+
+                        # Also extract any images/generated images from body schema
+                        try:
+                            parsed_s = extract_response(body, response_json=response_json)
+                            s_imgs = (getattr(parsed_s, "images", []) or []) + (getattr(parsed_s, "generated_images", []) or [])
+                            for s_img in s_imgs:
+                                if isinstance(s_img, dict) and s_img.get("url"):
+                                    s_url = s_img["url"]
+                                    if "image_generation_content" in s_url or "data_analysis_tool" in s_url:
+                                        continue
+                                    s_title = s_img.get("title") or s_img.get("alt") or "Generated Image"
+                                    img_md = f"\n\n![{s_title}]({s_url})\n\n"
+                                    if s_url not in accumulated_text:
+                                        accumulated_text += img_md
+                                        has_text = True
+                                        yield img_md
+                        except Exception:
+                            pass
                     except (IndexError, TypeError):
                         pass
 
                     # Update conversation state
                     try:
-                        final_conversation_id = body[1][0] if len(body) > 1 and body[1] else final_conversation_id
-                        final_response_id = body[1][1] if len(body) > 1 and len(body[1]) > 1 else final_response_id
-                        choices = [
-                            {"id": c[0], "content": c[1][0]}
-                            for c in body[4]
-                            if len(c) > 1 and isinstance(c[1], list) and c[1]
-                        ]
-                        final_choice_id = choices[0]["id"] if choices else final_choice_id
+                        if isinstance(body, list) and len(body) > 1 and body[1] and isinstance(body[1], list):
+                            b1 = body[1]
+                            if len(b1) > 1 and isinstance(b1[1], list) and len(b1[1]) > 0:
+                                if b1[1][0]:
+                                    final_conversation_id = str(b1[1][0])
+                                if len(b1[1]) > 1 and b1[1][1]:
+                                    final_response_id = str(b1[1][1])
+                            elif len(b1) > 0 and isinstance(b1[0], str) and b1[0]:
+                                final_conversation_id = str(b1[0])
+                                if len(b1) > 1 and b1[1] and isinstance(b1[1], str):
+                                    final_response_id = str(b1[1])
+
+                        if isinstance(body, list) and len(body) > 4 and isinstance(body[4], list) and body[4]:
+                            for c in body[4]:
+                                if isinstance(c, list) and len(c) > 0 and c[0]:
+                                    final_choice_id = str(c[0])
+                                    break
                     except (IndexError, TypeError):
                         pass
+            except RuntimeError as re:
+                raise re
             except Exception:
                 continue
+
+        if has_wrb and not has_text:
+            yield "\n[Message blocked by Google Gemini Safety Filters or returned no text.]"
 
         # Persist updated conversation state
         self.conversation_id = final_conversation_id
@@ -761,7 +836,8 @@ class AsyncChatbot:
         image_upload_id = None
         if image:
             try:
-                image_upload_id = await upload_file(image, proxy=self.proxies_dict, impersonate=self.impersonate)
+                bot_cookies = dict(self.session.cookies) if hasattr(self, 'session') and hasattr(self.session, 'cookies') else None
+                image_upload_id = await upload_file(image, proxy=self.proxies_dict, impersonate=self.impersonate, cookies=bot_cookies)
                 console.log(f"Image uploaded successfully. ID: {image_upload_id}")
             except Exception as e:
                 console.log(f"[red]Error uploading image: {e}[/red]")
